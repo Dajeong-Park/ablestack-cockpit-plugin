@@ -34,13 +34,15 @@ def main():
     elif (args.action) == 'cleanup':
         pcs.cleanupResource(args.resource)
     elif (args.action) == 'remove':
-        pcs.removeResource(args.resource)       
+        pcs.removeResource(args.resource)
     elif (args.action) == 'destroy':
         pcs.destroyCluster()
     elif (args.action) == 'status':
         pcs.statusResource(args.resource)
-
-
+    elif (args.action) == 'stop' :
+        pcs.stopCluster()
+    elif (args.action) == 'sync' :
+        pcs.clustersynctime(args.time)
 
 if __name__ == "__main__":
     main()

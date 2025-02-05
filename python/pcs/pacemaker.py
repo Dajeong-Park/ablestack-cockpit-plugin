@@ -9,6 +9,7 @@ Copyright (c) 2021 ABLECLOUD Co. Ltd
 # -*- coding: utf-8 -*-
 
 import argparse
+import os
 import sys
 import json
 import lxml
@@ -27,13 +28,14 @@ from bs4 import BeautifulSoup
 def parseArgs():
     parser = argparse.ArgumentParser(description='Pacemaker cluster for Cloud Center VM',
                                      epilog='copyrightⓒ 2021 All rights reserved by ABLECLOUD™')
-    
-    parser.add_argument('action', choices=['config', 'create', 'enable', 'disable', 'move', 'cleanup', 'status', 'remove', 'destroy'], help='choose one of the actions')
+
+    parser.add_argument('action', choices=['config', 'create', 'enable', 'disable', 'move', 'cleanup', 'status', 'remove', 'destroy', 'stop','sync'], help='choose one of the actions')
     parser.add_argument('--cluster', metavar='name', type=str, help='The name of the cluster to be created')
     parser.add_argument('--hosts', metavar='name', type=str, nargs='*', help='Hostnames to form a cluster')
     parser.add_argument('--resource', metavar='name', type=str, help='The name of the resource to be created')
     parser.add_argument('--xml', metavar='name', type=str, help='Cloud Center VM\'s xml file PATH')
     parser.add_argument('--target', metavar='name', type=str, help='Target hostname to migrate Cloud Center VM')
+    parser.add_argument('--time', metavar='name', type=str, help='Cluster Sync Mechanism of Cloud Center VM')
     return parser.parse_args()
 
 '''
@@ -49,7 +51,8 @@ class Pacemaker:
         self.resource_name = None
         self.xml_path = None
         self.target_host = None
-    
+        self.time = None
+
     # 함수명 : configCluster
     # 주요 기능 : pcs cluster 구성
     def configCluster(self, cluster_name, *hostnames):
@@ -69,7 +72,7 @@ class Pacemaker:
         ret = createReturn(code=200, val=ret_val)
         print(json.dumps(json.loads(ret), indent=4))
 
-        return ret       
+        return ret
 
     # 함수명 : createResource
     # 주요 기능 : pcs resource 생성
@@ -78,13 +81,13 @@ class Pacemaker:
         self.xml_path = xml_path
 
         #pcs resource 생성 command
-        pcs('resource', 'create', self.resource_name, 'VirtualDomain', 'hypervisor=qemu:///system', 
+        pcs('resource', 'create', self.resource_name, 'VirtualDomain', 'hypervisor=qemu:///system',
         f'config={self.xml_path}', 'migration_transport=ssh',
         'meta', 'allow-migrate=true', 'priority=100',
         'op', 'start', 'timeout=120s',
         'op', 'stop', 'timeout=120s',
         'op', 'monitor', 'timeout=30', 'interval=10')
-        
+
         ret_val = {'resource name :':self.resource_name, 'hypervisor':'qemu:///system', 'config':self.xml_path, 'migration_transport':'ssh'}
         ret = createReturn(code=200, val=ret_val)
         print(json.dumps(json.loads(ret), indent=4))
@@ -95,10 +98,10 @@ class Pacemaker:
     # 주요 기능 : pcs resource 시작
     def enableResource(self, resource_name):
         self.resource_name = resource_name
-        
+
         pcs('resource', 'cleanup', resource_name)
         pcs('resource', 'enable', self.resource_name)
-        
+
         ret = createReturn(code=200, val='enable')
         print(json.dumps(json.loads(ret), indent=4))
 
@@ -108,9 +111,9 @@ class Pacemaker:
     # 주요 기능 : pcs resource 정지
     def disableResource(self, resource_name):
         self.resource_name = resource_name
-        
+
         pcs('resource', 'disable', self.resource_name)
-        
+
         ret = createReturn(code=200, val='disable')
         print(json.dumps(json.loads(ret), indent=4))
 
@@ -123,11 +126,11 @@ class Pacemaker:
         self.target_host = target_host
         current_host = None
 
-        xml = pcs('status', 'xml').stdout.decode()
+        xml = pcs('status', 'xml')
         soup = BeautifulSoup(xml, 'lxml')
         soup_nodes = soup.find('nodes').select('node')
         soup_resource = soup.select_one(f'#{self.resource_name}')
-        
+
         # pcs resource가 실행 중인 경우
         if soup_resource['nodes_running_on'] == '1':
             current_host = soup.select_one(f'#{self.resource_name}').select_one("node")['name']
@@ -148,7 +151,7 @@ class Pacemaker:
 
         else:
             pcs('resource', 'move', self.resource_name, self.target_host)
-        
+
             ret_val = {'current host':current_host, 'target host':self.target_host}
             ret = createReturn(code=200, val=ret_val)
             print(json.dumps(json.loads(ret), indent=4))
@@ -159,9 +162,9 @@ class Pacemaker:
     # 주요 기능 : pcs resource를 클린업 하는 기능 (pcs resoure 상태를 초기화)
     def cleanupResource(self, resource_name):
         self.resource_name = resource_name
-        
+
         pcs('resource', 'cleanup', self.resource_name)
-        
+
         ret = createReturn(code=200, val='cleanup')
         print(json.dumps(json.loads(ret), indent=4))
 
@@ -171,50 +174,63 @@ class Pacemaker:
     # 주요 기능 : 현재 resource를 삭제하는 기능
     def removeResource(self, resource_name):
         self.resource_name = resource_name
-        
+
         try:
             pcs('resource', 'cleanup', self.resource_name)
             pcs('resource', 'disable', self.resource_name)
             pcs('resource', 'remove', self.resource_name)
             pcs('resource', 'refresh')
-            
+
             ret = createReturn(code=200, val='remove')
             print(json.dumps(json.loads(ret), indent=4))
-            
+
         except:
             ret = createReturn(code=400, val='resource not found.')
             print(json.dumps(json.loads(ret), indent=4))
 
         return ret
-    
+
     # 함수명 : destroyCluster
     # 주요 기능 : 현재 cluster를 삭제하는 기능
     def destroyCluster(self):
         try:
             pcs('cluster', 'destroy', '--all')
-            
+
             ret = createReturn(code=200, val='destroy')
             print(json.dumps(json.loads(ret), indent=4))
         except:
             ret = createReturn(code=400, val='cluster not found.')
             print(json.dumps(json.loads(ret), indent=4))
-            
+
         return ret
-    
+
+    # 함수명 : stopCluster
+    # 주요 기능 : 현재 cluster를 삭제하는 기능
+    def stopCluster(self):
+        try:
+            pcs('cluster', 'stop', '--all')
+
+            ret = createReturn(code=200, val='stop')
+            print(json.dumps(json.loads(ret), indent=4))
+        except:
+            ret = createReturn(code=400, val='cluster not found.')
+            print(json.dumps(json.loads(ret), indent=4))
+
+        return ret
     # 함수명 : statusResource
     # 주요 기능 : 현재 resource의 클러스터 호스트 정보, resource 리소스 실행 여부, block이나 fail 상태 여부 등을 조회하는 기능
     #          이 기능은 두개 이상의 리소스를 가진 클러스터에서도 조회 할 수 있음
     def statusResource(self, resource_name):
         self.resource_name = resource_name
-        
+
         resource = []
         res={}
         nodes = []
         node_list = []
         current_host = None
-        
+
         try:
-            xml = pcs('status', 'xml').stdout.decode()
+            xml = pcs('status', 'xml')
             soup = BeautifulSoup(xml, 'lxml')
             soup_nodes = soup.find('nodes').select('node')
             soup_resource = soup.select_one(f'#{self.resource_name}')
@@ -222,7 +238,7 @@ class Pacemaker:
             ret = createReturn(code=400, val='cluster is not configured.')
             print(json.dumps(json.loads(ret), indent=4))
             sys.exit(0)
-            
+
         try:
             if soup_resource['nodes_running_on'] == '1':
                 current_host = soup.select_one(f'#{self.resource_name}').select_one("node")['name']
@@ -230,7 +246,7 @@ class Pacemaker:
             ret = createReturn(code=400, val='resource not found.')
             print(json.dumps(json.loads(ret), indent=4))
             sys.exit(0)
- 
+
         for soup_node in soup_nodes:
             node = {}
             node['host'] = soup_node['name']
@@ -261,5 +277,19 @@ class Pacemaker:
         ret_val = {'clustered_host':node_list, 'nodes':nodes, 'started':current_host, 'role':res_role, 'active': res_active, 'blocked': res_blocked, 'failed': res_failed}
         ret = createReturn(code=200, val=ret_val)
         print(json.dumps(json.loads(ret), indent=4))
+
+        return ret
+
+    def clustersynctime(self, time):
+        self.time = time
+
+        try:
+            pcs('cluster', 'config', 'update', 'totem', f'token={self.time}')
+
+            ret = createReturn(code=200, val='Cloud VM Cluster Sync Mechanism Success')
+            print(json.dumps(json.loads(ret), indent=4))
+        except:
+            ret = createReturn(code=400, val='Cloud VM Cluster Sync Mechanism Failed.')
+            print(json.dumps(json.loads(ret), indent=4))
 
         return ret

@@ -34,19 +34,19 @@ def createArgumentParser():
     #--cpu 4 --memory 16                                 | 1택, 필수
     parser.add_argument('-c', '--cpu', metavar='[cpu cores]', type=int, help='input Value to cpu cores', required=True)
     parser.add_argument('-m', '--memory', metavar='[memory gb]', type=int, help='input Value to memory GB', required=True)
-     
+
     #--management-network-bridge br0                                        | 1택, 필수
     parser.add_argument('-mnb', '--management-network-bridge', metavar='[bridge name]', type=str, help='input Value to bridge name of the management network', required=True)
-    
+
     #--storage-network-bridge br1                                           | 1택, 조건부 필수
     parser.add_argument('-snb', '--storage-network-bridge', metavar='[bridge name]', type=str, help='input Value to bridge name of the storage network')
 
     # three host names
-    parser.add_argument('-hns', '--host-names', metavar=('[hostname1]','[hostname2]','[hostname3]'), type=str, nargs=3, help='input Value to three host names', required=True)
+    parser.add_argument('-hns', '--host-names', metavar='IP', type=str, nargs='+', help='input Value to three host names', required=True)
 
     # output 민감도 추가(v갯수에 따라 output및 log가 많아짐):
     parser.add_argument('-v', '--verbose', action='count', default=0, help='increase output verbosity')
-    
+
     # flag 추가(샘플임, 테스트용으로 json이 아닌 plain text로 출력하는 플래그 역할)
     parser.add_argument('-H', '--Human', action='store_const', dest='flag_readerble', const=True, help='Human readable')
     # Version 추가
@@ -57,7 +57,7 @@ def createArgumentParser():
 def generateMacAddress():
 
     # The first line is defined for specified vendor
-    
+
     mac = [ 0x00, 0x24, 0x81,
         random.randint(0x00, 0x7f),
         random.randint(0x00, 0xff),
@@ -81,7 +81,7 @@ def createSecretKey(host_names):
         # 쉘 스크립트 실행 실패
         if ret_num != 0 :
             return createReturn(code=500, val=host_name+" : pcs 클러스터 secret.xm 설정 실패 ")
-    
+
     return createReturn(code=200, val="pcs 클러스터 secret.xm 설정 성공")
 
 def createGwvmXml(args):
@@ -90,13 +90,12 @@ def createGwvmXml(args):
         slot_hex_num = generateDecToHex()
         br_num = 0
 
-        os.system("mkdir "+pluginpath+"/tools/vmconfig/gwvm")
+        os.system("mkdir -p"+pluginpath+"/tools/vmconfig/gwvm")
         os.system("yes|cp -f "+pluginpath+"/tools/xml-template/gwvm-xml-template.xml "+pluginpath+"/tools/vmconfig/gwvm/gwvm-temp.xml")
-        
+
         template_file = pluginpath+'/tools/vmconfig/gwvm/gwvm-temp.xml'
 
         with fileinput.FileInput(template_file, inplace=True, backup='.bak' ) as fi:
-
             for line in fi:
 
                 if '<!--memory-->' in line:
@@ -106,13 +105,13 @@ def createGwvmXml(args):
                 elif '<!--gwvm_cloudinit-->' in line:
                     cci_txt = "    <disk type='file' device='cdrom'>\n"
                     cci_txt += "      <driver name='qemu' type='raw'/>\n"
-                    cci_txt += "      <source file='"+pluginpath+"/tools/vmconfig/gwvm/gwvm-cloudinit.iso'/>\n"
+                    cci_txt += "      <source file='/var/lib/libvirt/images/gwvm-cloudinit.iso'/>\n"
                     cci_txt += "      <target dev='sdz' bus='sata'/>\n"
                     cci_txt += "      <readonly/>\n"
                     cci_txt += "      <shareable/>\n"
                     cci_txt += "      <address type='drive' controller='0' bus='0' target='0' unit='0'/>\n"
                     cci_txt += "    </disk>"
-                    
+
                     line = line.replace('<!--gwvm_cloudinit-->', cci_txt)
                 elif '<!--management_network_bridge-->' in line:
                     mnb_txt = "    <interface type='bridge'>\n"
@@ -142,18 +141,18 @@ def createGwvmXml(args):
                     else:
                         # <!--storage_network_bridge--> 주석제거
                         line = ''
-                
+
                 # 라인 수정
                 sys.stdout.write(line)
 
-        for host_name in args.host_names:
+        for host_name in args.host_names[0].split():
             ret_num = 0
             # pcs 클러스터 호스트에 gwvm.xml 복사 실패
             for i in [1,2,3]:
                 ret_num = os.system("scp -q "+pluginpath+"/tools/vmconfig/gwvm/gwvm-temp.xml root@"+host_name+":"+pluginpath+"/tools/vmconfig/gwvm/gwvm.xml")
                 if ret_num == 0:
                     break
-                    
+
             if ret_num != 0:
                 return createReturn(code=500, val="pcs 클러스터 호스트에 gwvm.xml 복사 실패")
 
@@ -189,7 +188,7 @@ def createGwvmXml(args):
         os.system("rm -f "+pluginpath+"/tools/vmconfig/gwvm/gwvm-temp.xml "+pluginpath+"/tools/vmconfig/gwvm/gwvm.xml.bak "+pluginpath+"/tools/vmconfig/gwvm/gwvm-temp.xml.bak")
 
         # 결과값 리턴
-        return createReturn(code=200, val="클라우드센터 가상머신 xml 생성 성공")        
+        return createReturn(code=200, val="클라우드센터 가상머신 xml 생성 성공")
 
     except Exception as e:
         # 결과값 리턴
@@ -212,5 +211,3 @@ if __name__ == '__main__':
     print(ret)
 
     # 실제 로직 부분 호출 및 결과 출력
-    
-    

@@ -8,11 +8,13 @@ Copyright (c) 2021 ABLECLOUD Co. Ltd
 # -*- coding: utf-8 -*-
 
 import argparse
+import json
 import logging
 import sys
 import fileinput
 import random
 import os
+import sh
 
 from ablestack import *
 
@@ -32,33 +34,33 @@ def createArgumentParser():
     #--cpu 4 --memory 16                                 | 1택, 필수
     parser.add_argument('-c', '--cpu', metavar='[cpu cores]', type=int, help='input Value to cpu cores', required=True)
     parser.add_argument('-m', '--memory', metavar='[memory gb]', type=int, help='input Value to memory GB', required=True)
-    
-    #--disk-type { raid_passthrough or lun_passthrough }            | 1택, 선택, 필수   
+
+    #--disk-type { raid_passthrough or lun_passthrough }            | 1택, 선택, 필수
     parser.add_argument('-dt', '--disk-type', metavar='[raid_passthrough or lun_passthrough]', choices=['raid_passthrough', 'lun_passthrough'], type=str, help='storage center VM disk type choice', required=True)
-    
+
     #--raid-passthrough-list raid1 raid2                                    | 다중선택, 조건부 필수 (disk-type가 raid_passthrough 일 경우)
     parser.add_argument('-rpl', '--raid-passthrough-list', metavar='[raid pci]', type=str, nargs='+', help='input Value to raid pic list')
-    
+
     #--lun-passthrough-list disk1 disk2                                 | 다중선택, 조건부 필수 (disk-type가 lun_passthrough 일 경우)
     parser.add_argument('-lpl', '--lun-passthrough-list', metavar='[lum]', type=str, nargs='+', help='input Value to LUN list')
-    
+
     #--management-network-bridge br0                                        | 1택, 필수
     parser.add_argument('-mnb', '--management-network-bridge', metavar='[bridge name]', type=str, help='input Value to bridge name of the management network', required=True)
-    
+
     #--storage-traffic-network-type { nic_passthrough or nic_passthrough_bonding or bridge }    | 1택, 선택, 필수
     parser.add_argument('-stnt', '--storage-traffic-network-type', metavar='[nic_passthrough or nic_passthrough_bonding or bridge]', choices=['nic_passthrough', 'nic_passthrough_bonding', 'bridge'], type=str, help='storage traffic network type choice', required=True)
-    
+
     #--server-nic-passthrough nic1                                      | 1택, 조건부 필수 (storage-traffic-network-type가 nic_passthrough일 경우)
     parser.add_argument('-snp', '--server-nic-passthrough', metavar='[pic id]', type=str, help='input Value to network device PCI ID of the storage traffic server network')
 
     #--replication-nic-passthrough nic2                                 | 1택, 조건부 필수 (storage-traffic-network-type가 nic_passthrough일 경우)
     parser.add_argument('-rnp', '--replication-nic-passthrough', metavar='[pic id]', type=str, help='input Value to network device PCI ID of the storage traffic replication network')
 
-    #--server-nic-passthrough-bonding-list nic1 nic2                    | 2택, 조건부 필수 (storage-traffic-network-type가 nic_passthrough_bonding일 경우)    
+    #--server-nic-passthrough-bonding-list nic1 nic2                    | 2택, 조건부 필수 (storage-traffic-network-type가 nic_passthrough_bonding일 경우)
     parser.add_argument('-snpbl', '--server-nic-passthrough-bonding-list', metavar=('[pci1 id]','[pci2 id]'), type=str, nargs=2, help='input Value to two network device PCI IDs of the storage traffic server network')
 
     #--replication-nic-passthrough-bonding-list nic3 nic4           | 2택, 조건부 필수 (storage-traffic-network-type가 nic_passthrough_bonding일 경우)
-    parser.add_argument('-rnpbl', '--replication-nic-passthrough-bonding-list', metavar=('[pci1 id]','[pci2 id]'), type=str, nargs=2, help='input Value to two network device PCI IDs of the storage traffic replication network')    
+    parser.add_argument('-rnpbl', '--replication-nic-passthrough-bonding-list', metavar=('[pci1 id]','[pci2 id]'), type=str, nargs=2, help='input Value to two network device PCI IDs of the storage traffic replication network')
 
     #--storage-traffic-server-network-bridge br1                        | 1택, 조건부 필수 (storage-traffic-network-type가 bridge 일 경우)
     parser.add_argument('-snb', '--server-network-bridge', metavar='[bridge name]', type=str, help='input Value to bridge name of storage traffic server network')
@@ -68,7 +70,7 @@ def createArgumentParser():
 
     # output 민감도 추가(v갯수에 따라 output및 log가 많아짐):
     parser.add_argument('-v', '--verbose', action='count', default=0, help='increase output verbosity')
-    
+
     # flag 추가(샘플임, 테스트용으로 json이 아닌 plain text로 출력하는 플래그 역할)
     parser.add_argument('-H', '--Human', action='store_const', dest='flag_readerble', const=True, help='Human readable')
     # Version 추가
@@ -76,11 +78,22 @@ def createArgumentParser():
 
     return parser
 
+json_file_path = pluginpath+"/tools/properties/cluster.json"
+
+def openClusterJson():
+    try:
+        with open(json_file_path, 'r') as json_file:
+            ret = json.load(json_file)
+    except Exception as e:
+        ret = createReturn(code=500, val='cluster.json read error')
+        print ('EXCEPTION : ',e)
+
+    return ret
 
 def generateMacAddress():
 
     # The first line is defined for specified vendor
-    
+
     mac = [ 0x00, 0x24, 0x81,
         random.randint(0x00, 0x7f),
         random.randint(0x00, 0xff),
@@ -98,16 +111,22 @@ def generateDecToHex():
         hex_list.append(hex(num))
     return hex_list
 
+json_data = openClusterJson()
+os_type = json_data["clusterConfig"]["type"]
+
 def createScvmXml(args):
     try:
         alphabet = ['a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q','r','s','t','u','v','w','x','y','z',]
         slot_hex_num = generateDecToHex()
         host_dev_num = 0
         br_num = 0
-        
+
         # 생성할 가상머신 xml 템플릿
-        os.system("yes|cp -f "+pluginpath+"/tools/xml-template/scvm-xml-template.xml "+pluginpath+"/tools/vmconfig/scvm/scvm-temp.xml")
-            
+        if os_type == "PowerFlex":
+            os.system("/usr/bin/cp -f "+pluginpath+"/tools/xml-template/powerflex-scvm-xml-template.xml "+pluginpath+"/tools/vmconfig/scvm/scvm-temp.xml")
+        else:
+            os.system("/usr/bin/cp -f "+pluginpath+"/tools/xml-template/scvm-xml-template.xml "+pluginpath+"/tools/vmconfig/scvm/scvm-temp.xml")
+
         template_file = pluginpath+'/tools/vmconfig/scvm/scvm-temp.xml'
 
         with fileinput.FileInput(template_file, inplace=True, backup='.bak' ) as fi:
@@ -121,7 +140,7 @@ def createScvmXml(args):
                 elif '<!--scvm_cloudinit-->' in line:
                     sci_txt = "    <disk type='file' device='cdrom'>\n"
                     sci_txt += "      <driver name='qemu' type='raw'/>\n"
-                    sci_txt += "      <source file='"+pluginpath+"/tools/vmconfig/scvm/scvm-cloudinit.iso'/>\n"
+                    sci_txt += "      <source file='/var/lib/libvirt/images/scvm-cloudinit.iso'/>\n"
                     sci_txt += "      <target dev='sdz' bus='sata'/>\n"
                     sci_txt += "      <readonly/>\n"
                     sci_txt += "      <shareable/>\n"
@@ -169,7 +188,7 @@ def createScvmXml(args):
                         snb_txt += "      <alias name='net" + str(br_num) + "'/>\n"
                         snb_txt += "      <address type='pci' domain='0x0000' bus='0x00' slot='" + slot_hex_num.pop(0) + "' function='0x0'/>\n"
                         snb_txt += "    </interface>\n"
-                        
+
                         br_num += 1
                         line = line.replace('<!--server_network_bridge-->', snb_txt)
                     else:
@@ -186,26 +205,26 @@ def createScvmXml(args):
                         rnb_txt += "      <alias name='net" + str(br_num) + "'/>\n"
                         rnb_txt += "      <address type='pci' domain='0x0000' bus='0x00' slot='" + slot_hex_num.pop(0) + "' function='0x0'/>\n"
                         rnb_txt += "    </interface>\n"
-                        
+
                         br_num += 1
                         line = line.replace('<!--replication_network_bridge-->', rnb_txt)
-                    else:    
+                    else:
                         # <!--replication_network_bridge--> 주석제거
                         line = ''
-                
+
                 elif '<!--raid_passthrough-->' in line:
                     if 'raid_passthrough' == args.disk_type:
-                        
+
                         rpl_txt = ""
                         for rpl in args.raid_passthrough_list:
                             # rpl 변수의 값 pci 예시는 00:00.0 (bus:slot.function) 규칙으로 입력됨
                             rpl1 = rpl.split(':') # bus와 slot.function 으로 분리
                             rpl2 = rpl1[1].split('.') # slot과 function 으로 분리
-                            
+
                             bus_num = rpl1[0]
                             slot_num = rpl2[0]
                             fun_num = rpl2[1]
-                            
+
                             rpl_txt += "    <hostdev mode='subsystem' type='pci' managed='yes'>\n"
                             rpl_txt += "      <driver name='vfio'/>\n"
                             rpl_txt += "      <source>\n"
@@ -216,18 +235,18 @@ def createScvmXml(args):
                             rpl_txt += "    </hostdev>\n"
                             host_dev_num += 1
                         line = line.replace('<!--raid_passthrough-->', rpl_txt)
-                    else:    
+                    else:
                         # <!--raid_passthrough--> 주석제거
                         line = ''
 
                 elif '<!--nic_passthrough-->' in line:
                     # nic card가 1개 일 경우 ( bonding을 하지 않을 경우)
                     if 'nic_passthrough' == args.storage_traffic_network_type:
-                        
+
                         # args.server_nic_passthrough 변수의 값 pci 예시는 0000:00:00.0 (domain:bus:slot.function) 규칙으로 입력됨
                         snp1 = args.server_nic_passthrough.split(":") # domain과 bus와 slot.function 으로 분리
                         snp2 = snp1[2].split('.') # slot과 function 으로 분리
-                        
+
                         snp_domain_num = snp1[0]
                         snp_bus_num = snp1[1]
                         snp_slot_num = snp2[0]
@@ -236,7 +255,7 @@ def createScvmXml(args):
                         # args.replication_nic_passthrough 변수의 값 pci 예시는 0000:00:00.0 (domain:bus:slot.function) 규칙으로 입력됨
                         rnp1 = args.replication_nic_passthrough.split(":") # domain과 bus와 slot.function 으로 분리
                         rnp2 = rnp1[2].split('.') # slot과 function 으로 분리
-                        
+
                         rnp_domain_num = rnp1[0]
                         rnp_bus_num = rnp1[1]
                         rnp_slot_num = rnp2[0]
@@ -272,7 +291,7 @@ def createScvmXml(args):
                             # args.server_nic_passthrough_bonding_list[i] 변수의 값 pci 예시는 0000:00:00.0 (domain:bus:slot.function) 규칙으로 입력됨
                             snp1 = args.server_nic_passthrough_bonding_list[i].split(":") # domain과 bus와 slot.function 으로 분리
                             snp2 = snp1[2].split('.') # slot과 function 으로 분리
-                            
+
                             snp_domain_num = snp1[0]
                             snp_bus_num = snp1[1]
                             snp_slot_num = snp2[0]
@@ -281,7 +300,7 @@ def createScvmXml(args):
                             # args.replication_nic_passthrough_bonding_list[i] 변수의 값 pci 예시는 0000:00:00.0 (domain:bus:slot.function) 규칙으로 입력됨
                             rnp1 = args.replication_nic_passthrough_bonding_list[i].split(":") # domain과 bus와 slot.function 으로 분리
                             rnp2 = rnp1[2].split('.') # slot과 function 으로 분리
-                            
+
                             rnp_domain_num = rnp1[0]
                             rnp_bus_num = rnp1[1]
                             rnp_slot_num = rnp2[0]
@@ -297,7 +316,7 @@ def createScvmXml(args):
                             npb_txt += "    </hostdev>\n"
                             host_dev_num += 1
                             slot_hex_num.pop(0)
-                            
+
                             npb_txt += "    <hostdev mode='subsystem' type='pci' managed='yes'>\n"
                             npb_txt += "      <driver name='vfio'/>\n"
                             npb_txt += "      <source>\n"
@@ -311,12 +330,12 @@ def createScvmXml(args):
 
                         line = line.replace('<!--nic_passthrough-->', npb_txt)
 
-                    else:    
+                    else:
                         # <!--nic_passthrough--> 주석제거
                         line = ''
                 # 라인 수정
                 sys.stdout.write(line)
-            
+
         # 작업파일 삭제 및 이름 변경
         os.system("mv "+pluginpath+"/tools/vmconfig/scvm/scvm-temp.xml "+pluginpath+"/tools/vmconfig/scvm/scvm.xml")
         os.system("rm -f "+pluginpath+"/tools/vmconfig/scvm/scvm-temp.xml.bak")
@@ -325,11 +344,53 @@ def createScvmXml(args):
         os.system("chmod 755 -R "+pluginpath+"/tools/vmconfig/scvm")
 
         # 결과값 리턴
-        return createReturn(code=200, val={})        
+        return createReturn(code=200, val={})
 
     except Exception as e:
         # 결과값 리턴
         #print(e)
+        return createReturn(code=500, val={})
+
+def createHugePageConfig(args):
+    try:
+
+        # limits
+        template_file = pluginpath + '/tools/vmconfig/scvm/limits-template.conf'
+        os.system("yes|cp -f " + pluginpath + "/tools/xml-template/limits-template.conf " + template_file)
+
+        with open(template_file, mode="rt") as fi:
+            file=fi.read()
+
+        file = file.replace('{memory}', str(args.memory * 1024 * 1024))
+
+        with open(template_file, mode="wt") as fi:
+            fi.write(file)
+
+        os.system("mv " + template_file + " /etc/security/limits.conf")
+
+        # sysctl
+        template_file = pluginpath + '/tools/vmconfig/scvm/sysctl-template.conf'
+        os.system("yes|cp -f " + pluginpath + "/tools/xml-template/sysctl-template.conf " + template_file)
+
+        with open(template_file, mode="rt") as fi:
+            file=fi.read()
+
+        file = file.replace('{memory}', str(args.memory * 1024))
+
+        with open(template_file, mode="wt") as fi:
+            fi.write(file)
+
+        os.system("mv " + template_file + " /etc/sysctl.conf")
+        sysctl = sh.Command("/usr/sbin/sysctl")
+        sysctl("-p")
+        sysctl("-a")
+
+        # 결과값 리턴
+        return createReturn(code=200, val={})
+
+    except Exception as e:
+        # 결과값 리턴
+        # print(e)
         return createReturn(code=500, val={})
 
 # Press the green button in the gutter to run the script.
@@ -345,5 +406,6 @@ if __name__ == '__main__':
     logger = createLogger(verbosity=logging.CRITICAL, file_log_level=logging.ERROR, log_file='test.log')
 
     # 실제 로직 부분 호출 및 결과 출력
+    ret = createHugePageConfig(args)
     ret = createScvmXml(args)
     print(ret)

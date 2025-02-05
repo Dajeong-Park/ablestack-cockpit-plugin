@@ -10,6 +10,7 @@ Copyright (c) 2021 ABLECLOUD Co. Ltd.
 import argparse
 import json
 import logging
+import pprint
 
 from ablestack import *
 import os
@@ -17,12 +18,7 @@ import sh
 import distro
 
 lsblk_cmd = sh.Command('/usr/bin/lsblk')
-if distro.linux_distribution() == ('CentOS Linux', '8', ''):
-    # print('centos8')
-    lspci_cmd = sh.Command('/usr/sbin/lspci')
-else:
-    # print('other')
-    lspci_cmd = sh.Command('/usr/bin/lspci')
+lspci_cmd = sh.Command('/usr/sbin/lspci')
 
 env = os.environ.copy()
 env['LANG'] = "en_US.utf-8"
@@ -42,7 +38,7 @@ def createArgumentParser():
     # 인자 추가: https://docs.python.org/ko/3/library/argparse.html#the-add-argument-method
 
     # 선택지 추가(동작 선택)
-    tmp_parser.add_argument('action', choices=['list', ], help="disk action")
+    tmp_parser.add_argument('action', choices=['list', 'gfs-list'], help="disk action")
 
     # output 민감도 추가(v갯수에 따라 output및 log가 많아짐)
     tmp_parser.add_argument("-v", "--verbose", action='count', default=0,
@@ -64,7 +60,7 @@ PCI 장치의 목록을 출력하는 함수
 :return: dict
 """
 def listPCIInterface(classify=None):
-    list_output = lspci_cmd('-vmm', '-k').stdout.decode().splitlines()
+    list_output = lspci_cmd('-vmm', '-k').splitlines()
     if classify is None:
         list_pci = []
         newpci = {}
@@ -96,55 +92,47 @@ def listPCIInterface(classify=None):
 
 :return: dict
 """
-def listDiskInterface(H=False, classify=None):
-    # disk_path result ex) ['sdb', '/dev/disk/by-path/pci-0000:58:00.0-scsi-0:2:0:0']
+def listDiskInterface(H=False, classify=None, action=None):
     disk_path = []
-    stream = os.popen("ls -l /dev/disk/by-path/ | awk '{ if($11 != \"\") print substr($11,\"7\",length($11))\" \"\"/dev/disk/by-path/\"$9}'")
-    output = stream.read()
-    lines = output.splitlines()
-    for line in lines:
-        line_sp = line.split()
-        if len(line_sp) == 2:
-            disk_path.append(line_sp)
-   
-    # output = nmcli_cmd('-c', 'no', '-f', 'TYPE,ACTIVE,DEVICE,STATE,SLAVE', 'con', 'show')
-    # output = nmcli_cmd('-c', 'no', '-f', 'ALL', 'con', 'show')
-    # outputs = output.splitlines()
-    # for out in outputs:
-    #    print(out.split())
+    if action != 'gfs-list':
+        stream = os.popen("ls -l /dev/disk/by-path/ | awk '{ if($11 != \"\") print substr($11,\"7\",length($11))\" \"\"/dev/disk/by-path/\"$9}'")
+        output = stream.read()
+        lines = output.splitlines()
+        for line in lines:
+            line_sp = line.split()
+            if len(line_sp) == 2:
+                disk_path.append(line_sp)
 
-    item = json.loads(lsblk_cmd(J=True, o="name,rota,model,size,state,group,type,tran,subsystems").stdout.decode())
+    item = json.loads(lsblk_cmd(J=True, o="name,path,rota,model,size,state,group,type,tran,subsystems,vendor,wwn"))
     bd = item['blockdevices']
     newbd = []
     for dev in bd:
-        if 'loop' not in dev['type']:
-            for dp in disk_path:
-                if dev["name"] == dp[0]:
-                    dev["path"] = dp[1]
-            newbd.append(dev)
-            
+        if action == 'gfs-list':
+            if 'loop' not in dev['type'] and  (dev['tran'] is None or 'usb' not in dev['tran']) and 'cdrom' not in dev['group']:
+                for dp in disk_path:
+                    if dev["name"] == dp[0]:
+                        dev["path"] = dp[1]
+                newbd.append(dev)
+        else:
+            if 'loop' not in dev['type']:
+                for dp in disk_path:
+                    if dev["name"] == dp[0]:
+                        dev["path"] = dp[1]
+                newbd.append(dev)
+
     item['blockdevices'] = newbd
-    # print(output)
 
     list_pci = listPCIInterface(classify=classify)
     item['raidcontrollers'] = [
-        # testdevice
-        # {
-        #     "Slot": "00:00.0",
-        #     "Class": "Raid",
-        #     "Vendor": "Advanced Micro Devices, Inc. [AMD]",
-        #     "Device": "Raid",
-        #     "SVendor": "Advanced Micro Devices, Inc. [AMD]",
-        #     "SDevice": "testRaid"
-        # }
     ]
     for pci in list_pci:
-        if 'raid' in pci['Device'].lower():
+        if 'raid' in pci['Class'].lower() or "Non-Volatile memory controller" in pci['Class']:
             item['raidcontrollers'].append(pci)
 
     if H:
         return json.dumps(indent=4, obj=json.loads(createReturn(code=200, val=item)))
     return createReturn(code=200, val=item)
+
 
 """
 PCI 장치와 디스크의 목록을 출력하는 함수
@@ -154,6 +142,8 @@ PCI 장치와 디스크의 목록을 출력하는 함수
 def diskAction(action, H):
     if action == 'list':
         return listDiskInterface(H=H)
+    elif action == 'gfs-list':
+        return listDiskInterface(H=H,action=action)
 
 
 if __name__ == '__main__':

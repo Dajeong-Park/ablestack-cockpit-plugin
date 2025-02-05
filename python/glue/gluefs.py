@@ -40,7 +40,7 @@ def createArgumentParser():
     # 인자 추가: https://docs.python.org/ko/3/library/argparse.html#the-add-argument-method
 
     # 선택지 추가(동작 선택)
-    tmp_parser.add_argument('action', choices=['config', 'destroy', 'status', 'list', 'detail', 'delete', 'edit', 'quota', 'mount', 'daemon'], help='glueFS action')
+    tmp_parser.add_argument('action', choices=['config', 'destroy', 'status', 'list', 'detail', 'delete', 'edit', 'quota', 'mount', 'daemon','gluefs-quota'], help='glueFS action')
     tmp_parser.add_argument('--type', metavar='fs type', type=str, help='gluefs, smb, nfs 중 파일시스템 타입')
     tmp_parser.add_argument('--path', metavar='gluefs path', type=str, help='gluefs 경로')
     tmp_parser.add_argument('--quota', metavar='gluefs quota max bytes', default='0', help='gluefs 쿼터 최대 크기 (Bytes)')
@@ -63,9 +63,9 @@ def createArgumentParser():
     return tmp_parser
 
 # glue 대시보드 url 조회
-def glueUrl(): 
+def glueUrl():
     try:
-        cmd = ssh('-o', 'StrictHostKeyChecking=no', 'ablecube', 'python3', pluginpath+ '/python/url/create_address.py', 'storageCenter')
+        cmd = ssh('-o', 'StrictHostKeyChecking=no', 'ablecube', 'python3', pluginpath+ '/python/url/create_address.py', 'storageCenter').splitlines()
         dashboard = json.loads(cmd[0])
         if dashboard["code"] != 200:
             return createReturn(code=500, val='gluefs.py url error :'+dashboard["val"])
@@ -94,21 +94,21 @@ def createToken():
             return response.json()['token']
         else:
             return createReturn(code=500, val=json.dumps(response.json(), indent=2))
+
     except Exception as e:
         return createReturn(code=500, val='gluefs.py createToken error :'+e)
-    
+
 # cluster.json 파일의 호스트 정보
 def openClusterJson():
     try:
         host_list=[]
-        cmd = ssh('-o', 'StrictHostKeyChecking=no', 'ablecube', 'cat', cluster_file_path, '|', 'grep', '-w', 'hostname', '|', 'awk', "'{print $2}'")
+        cmd = ssh('-o', 'StrictHostKeyChecking=no', 'ablecube', 'cat', cluster_file_path, '|', 'grep', '-w', 'hostname', '|', 'awk', "'{print $2}'").splitlines()
         for line in cmd:
             host = str(line).strip(',''""')
             host_list.append(host)
         return host_list
     except Exception as e:
         return createReturn(code=500, val='cluster.json read error :'+e)
-
 # daemon 조회
 def daemonList():
     try:
@@ -131,7 +131,7 @@ def daemonList():
     except Exception as e:
         return createReturn(code=500, val='gluefs.py daemonList error :'+e)
 
-# fs 구성 (nfs, smb, gluefs 구성하는 경우)      
+# fs 구성 (nfs, smb, gluefs 구성하는 경우)
 def configFs(args):
     try:
         ########### 구성 여부 확인  ###########
@@ -169,36 +169,37 @@ def configFs(args):
             # 초기 구성 - gluefs 구성
             if args.type == 'gluefs':
                 # 호스트 ceph 마운트하여 /gluefs 디폴트 경로 생성한후 마운트 해제
-                ssh('-o', 'StrictHostKeyChecking=no', 'ablecube', 'mkdir', '-p', args.mount_path)
-                ssh('-o', 'StrictHostKeyChecking=no', 'ablecube', 'mount', '-t', 'ceph', 'admin@.fs=/', args.mount_path)
-                ssh('-o', 'StrictHostKeyChecking=no', 'ablecube', 'mkdir', '-p', args.mount_path+'/gluefs')
-                ssh('-o', 'StrictHostKeyChecking=no', 'ablecube', 'umount', '-f', '-l',args.mount_path)
-                ssh('-o', 'StrictHostKeyChecking=no', 'ablecube', 'rm', '-rf', args.mount_path)
-                secret = ssh('-o', 'StrictHostKeyChecking=no', 'ablecube', 'cat', '/etc/ceph/ceph.client.admin.keyring', '|', 'awk', "'{print $3}'")
+                ssh('-o', 'StrictHostKeyChecking=no', 'ablecube', 'mkdir', '-p', args.mount_path).splitlines()
+                ssh('-o', 'StrictHostKeyChecking=no', 'ablecube', 'mount', '-t', 'ceph', 'admin@.fs=/', args.mount_path).splitlines()
+                ssh('-o', 'StrictHostKeyChecking=no', 'ablecube', 'mkdir', '-p', args.mount_path+'/gluefs').splitlines()
+                ssh('-o', 'StrictHostKeyChecking=no', 'ablecube', 'umount', '-f', '-l',args.mount_path).splitlines()
+                ssh('-o', 'StrictHostKeyChecking=no', 'ablecube', 'rm', '-rf', args.mount_path).splitlines()
+                secret = ssh('-o', 'StrictHostKeyChecking=no', 'ablecube', 'cat', '/etc/ceph/ceph.client.admin.keyring', '|', 'awk', "'{print $3}'").splitlines()
                 cmd = socket.gethostbyname('scvm1')+':6789,'+socket.gethostbyname('scvm2')+':6789,'+socket.gethostbyname('scvm3')+':6789:/gluefs\t'+args.mount_path+'\tceph\tname=admin,secret='+secret[1]+',noatime,_netdev\t0 0'
                 # gluefs의 경우 모든 호스트에 마운트 경로 생성, ceph 마운트, /etc/fstab 추가
                 for host in json_data:
-                    ssh('-o', 'StrictHostKeyChecking=no', host, 'mkdir', '-p', args.mount_path)
-                    ssh('-o', 'StrictHostKeyChecking=no', host, 'mount', '-t', 'ceph', 'admin@.fs=/gluefs', args.mount_path)
-                    ssh('-o', 'StrictHostKeyChecking=no', host, 'sed', '-i', "'$ a "+cmd+"'", '/etc/fstab')
+                    ssh('-o', 'StrictHostKeyChecking=no', host, 'mkdir', '-p', args.mount_path).splitlines()
+                    ssh('-o', 'StrictHostKeyChecking=no', host, 'mount', '-t', 'ceph', 'admin@.fs=/gluefs', args.mount_path).splitlines()
+                    ssh('-o', 'StrictHostKeyChecking=no', host, 'sed', '-i', "'$ a "+cmd+"'", '/etc/fstab').splitlines()
             # 초기 구성 - nfs, smb 구성
             else:
                 # gwvm ceph 마운트
-                ssh('-o', 'StrictHostKeyChecking=no', 'gwvm-mngt', 'mkdir', '-p', '/fs')
-                ssh('-o', 'StrictHostKeyChecking=no', 'gwvm-mngt', 'mount', '-t', 'ceph', 'admin@.fs=/', '/fs')
+                ssh('-o', 'StrictHostKeyChecking=no', 'gwvm-mngt', 'mkdir', '-p', '/fs').splitlines()
+                ssh('-o', 'StrictHostKeyChecking=no', 'gwvm-mngt', 'mount', '-t', 'ceph', 'admin@.fs=/', '/fs').splitlines()
                 # 마운트 상태 체크
                 while True:
-                    status = ssh('-o', 'StrictHostKeyChecking=no', 'gwvm-mngt', '/usr/bin/df', '-Th', '|', 'grep', 'ceph','|', 'awk', "'{print $7}'")
+                    status = ssh('-o', 'StrictHostKeyChecking=no', 'gwvm-mngt', '/usr/bin/df', '-Th', '|', 'grep', 'ceph','|', 'awk', "'{print $7}'").splitlines()
                     if len(status) != 0:
                         break
                 # 디렉토리 생성
-                ssh('-o', 'StrictHostKeyChecking=no', 'gwvm-mngt', 'mkdir', '-p', '/fs/gluefs')
-                ssh('-o', 'StrictHostKeyChecking=no', 'gwvm-mngt', 'mkdir', '-p', '/fs/nfs')
-                ssh('-o', 'StrictHostKeyChecking=no', 'gwvm-mngt', 'mkdir', '-p', '/fs/smb')
+                ssh('-o', 'StrictHostKeyChecking=no', 'gwvm-mngt', 'mkdir', '-p', '/fs/gluefs').splitlines()
+                ssh('-o', 'StrictHostKeyChecking=no', 'gwvm-mngt', 'mkdir', '-p', '/fs/nfs').splitlines()
+                ssh('-o', 'StrictHostKeyChecking=no', 'gwvm-mngt', 'mkdir', '-p', '/fs/smb').splitlines()
+                ssh('-o', 'StrictHostKeyChecking=no', 'gwvm-mngt', 'chmod', '777', '/fs/smb').splitlines()
                 # /etc/fstab 추가
-                secret = ssh('-o', 'StrictHostKeyChecking=no', 'gwvm-mngt', 'cat', '/etc/ceph/ceph.client.admin.keyring', '|', 'awk', "'{print $3}'")
+                secret = ssh('-o', 'StrictHostKeyChecking=no', 'gwvm-mngt', 'cat', '/etc/ceph/ceph.client.admin.keyring', '|', 'awk', "'{print $3}'").splitlines()
                 cmd = socket.gethostbyname('scvm1')+':6789,'+socket.gethostbyname('scvm2')+':6789,'+socket.gethostbyname('scvm3')+':6789:/gluefs\t/fs\tceph\tname=admin,secret='+secret[1]+',noatime,_netdev\t0 0'
-                ssh('-o', 'StrictHostKeyChecking=no', 'gwvm-mngt', 'sed', '-i', "'$ a "+cmd+"'", '/etc/fstab')
+                ssh('-o', 'StrictHostKeyChecking=no', 'gwvm-mngt', 'sed', '-i', "'$ a "+cmd+"'", '/etc/fstab').splitlines()
             # quota 지정
             if args.quota is not None:
                 args.path = '/'+args.type
@@ -209,34 +210,35 @@ def configFs(args):
                     return createReturn(code=500, val=value)
             return createReturn(code=200, val='gluefs service '+args.action+' control success')
         ########### fs가 생성되어 있는 경우  ###########
-        if fs_cnt == 1 and mds_cnt >= 1: 
+        if fs_cnt == 1 and mds_cnt >= 1:
             if args.type == 'gluefs':
-                secret = ssh('-o', 'StrictHostKeyChecking=no', 'ablecube', 'cat', '/etc/ceph/ceph.client.admin.keyring', '|', 'awk', "'{print $3}'")
+                secret = ssh('-o', 'StrictHostKeyChecking=no', 'ablecube', 'cat', '/etc/ceph/ceph.client.admin.keyring', '|', 'awk', "'{print $3}'").splitlines()
                 cmd = socket.gethostbyname('scvm1')+':6789,'+socket.gethostbyname('scvm2')+':6789,'+socket.gethostbyname('scvm3')+':6789:/gluefs\t'+args.mount_path+'\tceph\tname=admin,secret='+secret[1]+',noatime,_netdev\t0 0'
                 # gluefs의 경우 모든 호스트에 마운트 경로 생성, ceph 마운트, /etc/fstab 추가
                 for host in json_data:
-                    ssh('-o', 'StrictHostKeyChecking=no', host, 'mkdir', '-p', args.mount_path)
-                    ssh('-o', 'StrictHostKeyChecking=no', host, 'mount', '-t', 'ceph', 'admin@.fs=/gluefs', args.mount_path)
-                    ssh('-o', 'StrictHostKeyChecking=no', host, 'sed', '-i', "'$ a "+cmd+"'", '/etc/fstab')         
+                    ssh('-o', 'StrictHostKeyChecking=no', host, 'mkdir', '-p', args.mount_path).splitlines()
+                    ssh('-o', 'StrictHostKeyChecking=no', host, 'mount', '-t', 'ceph', 'admin@.fs=/gluefs', args.mount_path).splitlines()
+                    ssh('-o', 'StrictHostKeyChecking=no', host, 'sed', '-i', "'$ a "+cmd+"'", '/etc/fstab').splitlines()
             else:
                 # gwvm 마운트 상태 조회
-                mount = ssh('-o', 'StrictHostKeyChecking=no', 'gwvm-mngt', '/usr/bin/df', '-Th', '|', 'grep', 'ceph','|', 'awk', "'{print $7}'")
+                mount = ssh('-o', 'StrictHostKeyChecking=no', 'gwvm-mngt', '/usr/bin/df', '-Th', '|', 'grep', 'ceph','|', 'awk', "'{print $7}'").splitlines()
                 if len(mount) == 0:
                     ### nfs, smb의 경우 gwvm ceph 마운트
-                    ssh('-o', 'StrictHostKeyChecking=no', 'gwvm-mngt', 'mkdir', '-p', '/fs')
-                    ssh('-o', 'StrictHostKeyChecking=no', 'gwvm-mngt', 'mount', '-t', 'ceph', 'admin@.fs=/', '/fs')
+                    ssh('-o', 'StrictHostKeyChecking=no', 'gwvm-mngt', 'mkdir', '-p', '/fs').splitlines()
+                    ssh('-o', 'StrictHostKeyChecking=no', 'gwvm-mngt', 'mount', '-t', 'ceph', 'admin@.fs=/', '/fs').splitlines()
                     # 마운트 상태 체크
                     while True:
-                        status = ssh('-o', 'StrictHostKeyChecking=no', 'gwvm-mngt', '/usr/bin/df', '-Th', '|', 'grep', 'ceph','|', 'awk', "'{print $7}'")
+                        status = ssh('-o', 'StrictHostKeyChecking=no', 'gwvm-mngt', '/usr/bin/df', '-Th', '|', 'grep', 'ceph','|', 'awk', "'{print $7}'").splitlines()
                         if len(status) != 0:
                             break
                     # 디렉토리 생성
-                    ssh('-o', 'StrictHostKeyChecking=no', 'gwvm-mngt', 'mkdir', '-p', '/fs/nfs')
-                    ssh('-o', 'StrictHostKeyChecking=no', 'gwvm-mngt', 'mkdir', '-p', '/fs/smb')
+                    ssh('-o', 'StrictHostKeyChecking=no', 'gwvm-mngt', 'mkdir', '-p', '/fs/nfs').splitlines()
+                    ssh('-o', 'StrictHostKeyChecking=no', 'gwvm-mngt', 'mkdir', '-p', '/fs/smb').splitlines()
+                    ssh('-o', 'StrictHostKeyChecking=no', 'gwvm-mngt', 'chmod', '777', '/fs/smb').splitlines()
                     # /etc/fstab 추가
-                    secret = ssh('-o', 'StrictHostKeyChecking=no', 'gwvm-mngt', 'cat', '/etc/ceph/ceph.client.admin.keyring', '|', 'awk', "'{print $3}'")
+                    secret = ssh('-o', 'StrictHostKeyChecking=no', 'gwvm-mngt', 'cat', '/etc/ceph/ceph.client.admin.keyring', '|', 'awk', "'{print $3}'").splitlines()
                     cmd = socket.gethostbyname('scvm1')+':6789,'+socket.gethostbyname('scvm2')+':6789,'+socket.gethostbyname('scvm3')+':6789:/gluefs\t/fs\tceph\tname=admin,secret='+secret[1]+',noatime,_netdev\t0 0'
-                    ssh('-o', 'StrictHostKeyChecking=no', 'gwvm-mngt', 'sed', '-i', "'$ a "+cmd+"'", '/etc/fstab')
+                    ssh('-o', 'StrictHostKeyChecking=no', 'gwvm-mngt', 'sed', '-i', "'$ a "+cmd+"'", '/etc/fstab').splitlines()
             # quota 지정
             if args.quota is not None:
                 args.path = '/'+args.type
@@ -256,15 +258,16 @@ def destroyFs(args):
     try:
         check_output(['ceph config set mon mon_allow_pool_delete true'], universal_newlines=True, shell=True, env=env)
         check_output(['ceph fs volume rm fs --yes-i-really-mean-it'], universal_newlines=True, shell=True, env=env)
+        return createReturn(code=200, val='gluefs.py destroyFs success')
     except Exception as e:
         return createReturn(code=500, val='gluefs.py destroyFs error :'+e)
 
-# MDS 서비스 상태 조회  
+# MDS 서비스 상태 조회
 def statusFs(args):
     try:
         token = createToken()
         headers = {
-            'Accept': 'application/vnd.ceph.api.v1.0+json',
+            'Accept': 'application/vnd.ceph.api.v2.0+json',
             'Authorization': 'Bearer ' + token,
             'Content-Type': 'application/json'
         }
@@ -283,7 +286,7 @@ def statusFs(args):
 
 # fs 조회
 def listFs(args):
-    try: 
+    try:
         token = createToken()
         headers = {
             'Accept': 'application/vnd.ceph.api.v1.0+json',
@@ -299,7 +302,7 @@ def listFs(args):
             return createReturn(code=500, val=json.dumps(response.json(), indent=2))
     except Exception as e:
         return createReturn(code=500, val='gluefs.py listFs error :'+e)
-    
+
 # fs 상세 조회
 def detailFs(args):
     try:
@@ -320,6 +323,7 @@ def detailFs(args):
         url = glueUrl()
         requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
         response = requests.get(url+'/api/cephfs/fs_id', headers=headers, params=params, verify=False)
+
         if response.status_code == 200:
             return createReturn(code=200, val=json.dumps(response.json(), indent=2))
         else:
@@ -329,7 +333,7 @@ def detailFs(args):
 
 # quota 조회 및 편집
 def quotaFs(args):
-    try: 
+    try:
         token = createToken()
         headers = {
             'Accept': 'application/vnd.ceph.api.v1.0+json',
@@ -355,11 +359,11 @@ def quotaFs(args):
         # quota 편집
         else:
             if args.path != '/gluefs':
-                ssh('-o', 'StrictHostKeyChecking=no', 'gwvm-mngt', 'setfattr -n ceph.quota.max_bytes -v '+args.quota+ ' /fs/'+args.path)
+                ssh('-o', 'StrictHostKeyChecking=no', 'gwvm-mngt', 'setfattr -n ceph.quota.max_bytes -v '+args.quota+ ' /fs/'+args.path).splitlines()
             else:
                 path = mouontGlueFs(args)
                 if path != '':
-                    ssh('-o', 'StrictHostKeyChecking=no', 'ablecube', 'setfattr -n ceph.quota.max_bytes -v '+args.quota+' '+path)
+                    ssh('-o', 'StrictHostKeyChecking=no', 'ablecube', 'setfattr -n ceph.quota.max_bytes -v '+args.quota+' '+path).splitlines()
                 else:
                     return createReturn(code=500, val='gluefs.py quotaFs error : ceph is not mounted on the host.')
             return createReturn(code=200, val='gluefs service '+args.action+' control success')
@@ -369,7 +373,7 @@ def quotaFs(args):
 # glueFS 마운트 경로 조회
 def mouontGlueFs(args):
     try:
-        path = ssh('-o', 'StrictHostKeyChecking=no', 'ablecube', '/usr/bin/df', '-Th', '|', 'grep', 'ceph','|', 'awk', "'{print $7}'")
+        path = ssh('-o', 'StrictHostKeyChecking=no', 'ablecube', '/usr/bin/df', '-Th', '|', 'grep', 'ceph','|', 'awk', "'{print $7}'").splitlines()
         if len(path) != 0:
             return path[0]
         else:
@@ -385,10 +389,10 @@ def editGlueFs(args):
         if args.mount_path is not None:
             path = mouontGlueFs(args)
             for host in json_data:
-                ssh('-o', 'StrictHostKeyChecking=no', host, 'umount', '-f', '-l', path)
-                ssh('-o', 'StrictHostKeyChecking=no', host, 'mkdir', '-p', args.mount_path)
-                ssh('-o', 'StrictHostKeyChecking=no', host, 'mount', '-t', 'ceph', 'admin@.fs=/gluefs', args.mount_path)
-                ssh('-o', 'StrictHostKeyChecking=no', host, 'sed', '-i', "'s|"+path+"|"+args.mount_path+"|g'", '/etc/fstab')
+                ssh('-o', 'StrictHostKeyChecking=no', host, 'umount', '-f', '-l', path).splitlines()
+                ssh('-o', 'StrictHostKeyChecking=no', host, 'mkdir', '-p', args.mount_path).splitlines()
+                ssh('-o', 'StrictHostKeyChecking=no', host, 'mount', '-t', 'ceph', 'admin@.fs=/gluefs', args.mount_path).splitlines()
+                ssh('-o', 'StrictHostKeyChecking=no', host, 'sed', '-i', "'s|"+path+"|"+args.mount_path+"|g'", '/etc/fstab').splitlines()
         # quota 변경
         if args.quota is not None:
             args.path = '/gluefs'
@@ -407,17 +411,24 @@ def deleteGlueFs(args):
         json_data = openClusterJson()
         # 디렉토리 비우는 작업, 모든 호스트 마운트 해제 및 /etc/fstab 삭제
         path = mouontGlueFs(args)
+         # gwvm 디렉토리 비우기, /etc/fstab 삭제 및 마운트 해제
+        ssh('-o', 'StrictHostKeyChecking=no', 'gwvm', 'rm', '-rf', path+'/*').splitlines()
+        ssh('-o', 'StrictHostKeyChecking=no', 'gwvm', 'umount', '-f', '-l', path).splitlines()
+        ssh('-o', 'StrictHostKeyChecking=no', 'gwvm', 'rm', '-rf', path).splitlines()
+        ssh('-o', 'StrictHostKeyChecking=no', 'gwvm', 'sed', '-i', '/ceph/d', '/etc/fstab').splitlines()
+
         for host in json_data:
-            ssh('-o', 'StrictHostKeyChecking=no', host, 'rm', '-rf', path+'/*')
-            ssh('-o', 'StrictHostKeyChecking=no', host, 'umount', '-f', '-l', path)
-            ssh('-o', 'StrictHostKeyChecking=no', host, 'sed', '-i', '/ceph/d', '/etc/fstab')
+            ssh('-o', 'StrictHostKeyChecking=no', host, 'rm', '-rf', path+'/*').splitlines()
+            ssh('-o', 'StrictHostKeyChecking=no', host, 'umount', '-f', '-l', path).splitlines()
+            ssh('-o', 'StrictHostKeyChecking=no', host, 'sed', '-i', '/ceph/d', '/etc/fstab').splitlines()
+
         return createReturn(code=200, val='gluefs service '+args.action+' control success')
     except Exception as e:
         return createReturn(code=500, val='gluefs.py deleteGlueFs error :'+e)
 
-# mds 서비스 제어   
+# mds 서비스 제어
 def controlDaemon(args):
-    try:        
+    try:
         token = createToken()
         headers = {
             'Accept': 'application/vnd.ceph.api.v0.1+json',
@@ -451,10 +462,27 @@ def controlDaemon(args):
         if success == 2 and schedule == 0:
             return createReturn(code=200, val='gluefs service '+args.action+' control success')
         else:
-            return createReturn(code=200, val='scheduled to '+args.control+' gluefs service')    
+            return createReturn(code=200, val='scheduled to '+args.control+' gluefs service')
     except Exception as e:
         return createReturn(code=500, val='gluefs.py controlDaemon error :'+e)
 
+def gluequota():
+    # 서비스 제어 명령
+    try:
+        quota = ssh('-o', 'StrictHostKeyChecking=no', 'gwvm-mngt', 'getfattr', '-n', 'ceph.quota.max_bytes', '--absolute-names', "/fs/gluefs | grep -w max_bytes | awk -F '\"' '{print $2}' ").splitlines()
+        usage = ssh('-o', 'StrictHostKeyChecking=no', 'gwvm-mngt', 'du', '-sh', '/fs/gluefs', '|', "awk '{print $1}'").splitlines()
+        fs_path = ssh('-o', 'StrictHostKeyChecking=no', 'ablecube', 'df', '-Th', '|', 'grep', 'ceph', '|', "awk '{print $7}'").splitlines()
+        result = {
+            "quota": quota,
+            "usage": usage,
+            "fs_path": fs_path
+        }
+        ret = createReturn(code=200, val=result)
+
+    except Exception as e:
+        ret = createReturn(code=500, val="gluefs quota check fail")
+
+    return print(json.dumps(json.loads(ret), indent=4))
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
     # parser 생성
@@ -475,7 +503,7 @@ if __name__ == '__main__':
     elif (args.action) == 'destroy':
         print(destroyFs(args))
     elif (args.action) == 'status':
-        print(statusFs(args))  
+        print(statusFs(args))
     elif (args.action) == 'detail':
         print(detailFs(args))
     elif (args.action) == 'list':
@@ -490,4 +518,5 @@ if __name__ == '__main__':
         print(deleteGlueFs(args))
     elif (args.action) == 'daemon':
         print(controlDaemon(args))
-    
+    elif(args.action) == 'gluefs-quota':
+        gluequota()

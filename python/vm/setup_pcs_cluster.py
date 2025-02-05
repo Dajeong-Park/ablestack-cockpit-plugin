@@ -32,14 +32,14 @@ def createArgumentParser():
 
     #parser.add_argument('action', choices=['reset'], help='choose one of the actions')
 
-    parser.add_argument('-hns', '--host-names', metavar=('[hostname1]','[hostname2]','[hostname3]'), type=str, nargs=3, help='input Value to three host names', required=True)
+    parser.add_argument('-hns', '--host-names', metavar='IP', type=str, nargs='+', help='input Value to three host names', required=True)
 
     # output 민감도 추가(v갯수에 따라 output및 log가 많아짐):
     parser.add_argument('-v', '--verbose', action='count', default=0, help='increase output verbosity')
-    
+
     # flag 추가(샘플임, 테스트용으로 json이 아닌 plain text로 출력하는 플래그 역할)
     parser.add_argument('-H', '--Human', action='store_const', dest='flag_readerble', const=True, help='Human readable')
-    
+
     # Version 추가
     parser.add_argument('-V', '--Version', action='version', version='%(prog)s 1.0')
 
@@ -50,9 +50,9 @@ def setupPcsCluster(args):
     success_bool = True
 
     # psc 구성한 3대의 호스트 crontab에 ccvm 스냅샷 기능 추가
-    for host in args.host_names:
+    for host in args.host_names[0].split():
         check_err = 0
-        
+
         check_err = os.system("ssh root@"+host+" \"rm -f /var/spool/cron/tmpfile\"")
         if check_err != 0 :
             return createReturn(code=500, val=host+" : /var/spool/cron/tmpfile delete failed")
@@ -74,20 +74,23 @@ def setupPcsCluster(args):
         if check_err != 0 :
             return createReturn(code=500, val=host+" : systemctl restart crond.service failed")
 
-    
+    #crushmap 및 rbd size 설정
+    os.system("/usr/local/sbin/setCrushmap.sh")
+        
     #=========== pcs cluster 구성 ===========
     # ceph 이미지 등록
     os.system("qemu-img convert -f qcow2 -O rbd /var/lib/libvirt/images/ablestack-template-back.qcow2 rbd:rbd/ccvm")
     # ccvm image resize
     os.system("rbd resize -s 500G ccvm")
 
+    host_names = args.host_names[0].split()
     # 클러스터 구성
-    result = json.loads(python3(pluginpath + '/python/pcs/main.py', 'config', '--cluster', 'cloudcenter_cluster', '--hosts', args.host_names[0], args.host_names[1], args.host_names[2] ).stdout.decode())
+    result = json.loads(python3(pluginpath + '/python/pcs/main.py', 'config', '--cluster', 'cloudcenter_cluster', '--hosts', host_names[0], host_names[1], host_names[2] ))
     if result['code'] not in [200]:
         success_bool = False
 
     # 리소스 생성
-    result = json.loads(python3(pluginpath+'/python/pcs/main.py', 'create', '--resource', 'cloudcenter_res', '--xml', pluginpath+'/tools/vmconfig/ccvm/ccvm.xml' ).stdout.decode())
+    result = json.loads(python3(pluginpath+'/python/pcs/main.py', 'create', '--resource', 'cloudcenter_res', '--xml', pluginpath+'/tools/vmconfig/ccvm/ccvm.xml' ))
     if result['code'] not in [200]:
         success_bool = False
 
@@ -95,7 +98,7 @@ def setupPcsCluster(args):
     domid_check = 0
     cnt_num = 0
     while True:
-        time.sleep(1)
+        time.sleep(5)
         cnt_num += 1
         domid_check = os.system("virsh domid ccvm > /dev/null")
         if domid_check == 0 or cnt_num > 300:
@@ -125,4 +128,3 @@ if __name__ == '__main__':
     # 실제 로직 부분 호출 및 결과 출력
     ret = setupPcsCluster(args)
     print(ret)
-
