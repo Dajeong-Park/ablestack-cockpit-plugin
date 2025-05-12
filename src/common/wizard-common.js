@@ -586,7 +586,7 @@ function settingProfile(clusterJsonConf, option, os_type){
     let max_index = 0;
     let current_host_name = $("#form-input-current-host-name").val();
     let add_tr_yn = true;
-    if(os_type == "general-virtualization"){
+    if(os_type == "ablestack-vm"){
         for (let i = 0 ; i < hostCnt ; i++){
             insert_tr += "<tr style='border-bottom: solid 1px #dcdcdc'>";
             insert_tr += "  <td contenteditable='false'>"+hostsJson[i].index+"</td>";
@@ -621,9 +621,7 @@ function settingProfile(clusterJsonConf, option, os_type){
             $("#form-input-cluster-mngt-nic-cidr").val(clusterJsonConf.clusterConfig.mngtNic.cidr);
             $("#form-input-cluster-mngt-nic-gateway").val(clusterJsonConf.clusterConfig.mngtNic.gw);
             $("#form-input-cluster-mngt-nic-dns").val(clusterJsonConf.clusterConfig.mngtNic.dns);
-            $("#form-input-cluster-pcs-hostname1").val(clusterJsonConf.clusterConfig.pcsCluster.hostname1);
-            $("#form-input-cluster-pcs-hostname2").val(clusterJsonConf.clusterConfig.pcsCluster.hostname2);
-            $("#form-input-cluster-pcs-hostname3").val(clusterJsonConf.clusterConfig.pcsCluster.hostname3);
+            $("#form-input-cluster-config-external-time-server-ip").val(clusterJsonConf.clusterConfig.extenal_timeserver);
         }
 
         $('#form-input-cluster-config-host-number'+option+'').val(hostCnt);
@@ -635,9 +633,10 @@ function settingProfile(clusterJsonConf, option, os_type){
             $("#form-input-cloud-vm-mngt-nic-ip").val("");
             $("#form-input-cloud-vm-mngt-gw").val("");
             $("#form-input-cloud-vm-dns").val("");
-            $("#form-input-cloud-vm-failover-cluster-host1-name").val("");
-            $("#form-input-cloud-vm-failover-cluster-host2-name").val("");
-            $("#form-input-cloud-vm-failover-cluster-host3-name").val("");
+
+            for (let i = 0 ; i < hostCnt ; i++){
+                $(`#form-input-cloud-vm-failover-cluster-host${i+1}-name`).val("");
+            }
 
             // 값 세팅
             if(clusterJsonConf.clusterConfig.ccvm.ip != "" && clusterJsonConf.clusterConfig.ccvm.ip != null){
@@ -653,23 +652,12 @@ function settingProfile(clusterJsonConf, option, os_type){
             if(c_mngt_dns != ""){
                 $("#form-input-cloud-vm-dns").val(c_mngt_dns);
             }
-
-            if(clusterJsonConf.clusterConfig.pcsCluster.hostname1 != "" && clusterJsonConf.clusterConfig.pcsCluster.hostname1 != null){
-                $("#form-input-cloud-vm-failover-cluster-host1-name").val(clusterJsonConf.clusterConfig.pcsCluster.hostname1);
-            }else if(clusterJsonConf.clusterConfig.hosts.length > 0 && clusterJsonConf.clusterConfig.hosts[0].hostname != "" && clusterJsonConf.clusterConfig.hosts[0].hostname != null){
-                $("#form-input-cloud-vm-failover-cluster-host1-name").val(clusterJsonConf.clusterConfig.hosts[0].hostname);
-            }
-
-            if(clusterJsonConf.clusterConfig.pcsCluster.hostname2 != "" && clusterJsonConf.clusterConfig.pcsCluster.hostname2 != null){
-                $("#form-input-cloud-vm-failover-cluster-host2-name").val(clusterJsonConf.clusterConfig.pcsCluster.hostname2);
-            }else if(clusterJsonConf.clusterConfig.hosts.length > 1 && clusterJsonConf.clusterConfig.hosts[1].hostname != "" && clusterJsonConf.clusterConfig.hosts[1].hostname != null){
-                $("#form-input-cloud-vm-failover-cluster-host2-name").val(clusterJsonConf.clusterConfig.hosts[1].hostname);
-            }
-
-            if(clusterJsonConf.clusterConfig.pcsCluster.hostname3 != "" && clusterJsonConf.clusterConfig.pcsCluster.hostname3 != null){
-                $("#form-input-cloud-vm-failover-cluster-host3-name").val(clusterJsonConf.clusterConfig.pcsCluster.hostname3);
-            }else if(clusterJsonConf.clusterConfig.hosts.length > 2 && clusterJsonConf.clusterConfig.hosts[2].hostname != "" && clusterJsonConf.clusterConfig.hosts[2].hostname != null){
-                $("#form-input-cloud-vm-failover-cluster-host3-name").val(clusterJsonConf.clusterConfig.hosts[2].hostname);
+            for (let i = 0 ; i < hostCnt ; i++){
+                if(clusterJsonConf.clusterConfig.pcsCluster[`hostname${i+1}`] != "" && clusterJsonConf.clusterConfig.pcsCluster[`hostname${i+1}`] != null){
+                    $(`#form-input-cloud-vm-failover-cluster-host${i+1}-name`).val(clusterJsonConf.clusterConfig.pcsCluster[`hostname${i+1}`]);
+                }else if(clusterJsonConf.clusterConfig.hosts.length > 0 && clusterJsonConf.clusterConfig.hosts[i].hostname != "" && clusterJsonConf.clusterConfig.hosts[i].hostname != null){
+                    $(`#form-input-cloud-vm-failover-cluster-host${i+1}-name`).val(clusterJsonConf.clusterConfig.hosts[i].hostname);
+                }
             }
         }
     }else{
@@ -717,6 +705,7 @@ function settingProfile(clusterJsonConf, option, os_type){
             $("#form-input-cluster-pcs-hostname1").val(clusterJsonConf.clusterConfig.pcsCluster.hostname1);
             $("#form-input-cluster-pcs-hostname2").val(clusterJsonConf.clusterConfig.pcsCluster.hostname2);
             $("#form-input-cluster-pcs-hostname3").val(clusterJsonConf.clusterConfig.pcsCluster.hostname3);
+            $("#form-input-cluster-config-external-time-server-ip").val(clusterJsonConf.clusterConfig.extenal_timeserver);
         }
 
         $('#form-input-cluster-config-host-number'+option+'').val(hostCnt);
@@ -934,7 +923,7 @@ function tableToHostsText(table_tr_obj, option, os_type){
             if(current_host_name == host_name){
                 temp_text = host_ip + "\t" + host_name + "\t" + "ablecube" + "\n";
                 temp_text += scvm_mngt_ip + "\t"  + "scvm"+idx+"-mngt" + "\t" + "scvm-mngt" + "\n";
-                temp_text += host_pn_ip + "\t"  + "pn-"+"ablecube"+idx+ + "\t" + "pn-ablecube" + "\n";
+                temp_text += host_pn_ip + "\t"  + "pn-"+"ablecube"+idx + "\t" + "pn-ablecube" + "\n";
                 temp_text += scvm_pn_ip + "\t"  + "pn-"+"scvm"+idx + "\t" + "pn-scvm" + "\n";
                 temp_text += scvm_cn_ip + "\t"  + "cn-"+"scvm"+idx + "\t" + "cn-scvm" + "\n";
             } else {
@@ -944,7 +933,7 @@ function tableToHostsText(table_tr_obj, option, os_type){
                 temp_text += scvm_pn_ip + "\t"  + "pn-"+"scvm"+idx + "\n";
                 temp_text += scvm_cn_ip + "\t"  + "cn-"+"scvm"+idx + "\n";
             }
-        }else if(os_type == "general-virtualization"){
+        }else if(os_type == "ablestack-vm"){
             let host_name = $(this).find('td').eq(1).text().trim();
             let host_ip = $(this).find('td').eq(2).text().trim();
 
@@ -994,7 +983,7 @@ function tableToHostsText(table_tr_obj, option, os_type){
     let input_num = $("#"+number_input).val();
     let tr_cnt = $("#"+table_tbody+ " > tr").length;
 
-    if (os_type == "general-virtualization"){
+    if (os_type == "ablestack-vm"){
         if(input_num > tr_cnt){ // <tr> 증가 경우 6 > 5
             for(let i = 0 ; i < input_num-tr_cnt ; i++){
                 let insert_tr = "";
@@ -1067,7 +1056,7 @@ function tableToClusterConfigJsonString(radio_value, option, os_type){
         // 객체 생성
 		var data = new Object() ;
 
-        if (os_type == "general-virtualization"){
+        if (os_type == "ablestack-vm"){
             let idx = $(this).find('td').eq(0).text().trim();
             let host_name = $(this).find('td').eq(1).text().trim();
             let host_ip = $(this).find('td').eq(2).text().trim();
@@ -1136,7 +1125,7 @@ function tableToClusterConfigJsonString(radio_value, option, os_type){
         // eq(5) : SCVM PN IP
         // eq(6) : SCVM CN IP
 
-        if (os_type == "general-virtualization"){
+        if (os_type == "ablestack-vm"){
             let idx = $(this).find('td').eq(0).text().trim();
             let host_name = $(this).find('td').eq(1).text().trim();
             let host_ip = $(this).find('td').eq(2).text().trim();
@@ -1405,7 +1394,7 @@ function tableToClusterConfigJsonString(radio_value, option, os_type){
         // eq(6) : SCVM CN IP
 
 
-        if (os_type == "general-virtualization"){
+        if (os_type == "ablestack-vm"){
             let host_ip = $(this).find('td').eq(2).text().trim();
             // let host_pn_ip = $(this).find('td').eq(3).text().trim();
 
@@ -1534,7 +1523,7 @@ function pcsHostPnIpCheck(host_file_type, pcs_host_pn_ip, option){
 function clusterConfigProfile(operating_system,setting) {
     // 열 정보 설정
     let columns = [];
-    if (operating_system == "general-virtualization") {
+    if (operating_system == "ablestack-vm") {
         columns = [
             { name: "idx", width: "5%" },
             { name: "호스트 명", width: "15%" },
@@ -1594,6 +1583,6 @@ function clusterConfigProfile(operating_system,setting) {
     }
     // 테이블 생성 호출
     createTableHeader();
-    const rows = operating_system === "general-virtualization" ? 1 : 3;
+    const rows = operating_system === "ablestack-vm" ? 1 : 3;
     createTableBody(rows);
 }

@@ -35,6 +35,7 @@
                     <button style="display:none;font-size: 0.83rem;" class="pf-c-button pf-m-primary pf-m-inline"
                         id="button-config-file-download" aria-disabled="false" type="button" data-ouia-safe="true">설정파일
                         다운로드</button>
+                    <button class="pf-c-button pf-m-link pf-m-inline" type="button" id="button-open-modal-license-register">라이센스 관리</button>
                 </div>
             </div>
         </section>
@@ -69,15 +70,26 @@
                                                 <li class="pf-c-divider" role="separator"></li>
                                                 <li id="gfs-multipath-sync">
                                                     <button id="button-gfs-multipath-sync"
+                                                    name="button-gfs-multipath-sync-name"
                                                     class="pf-c-dropdown__menu-item"
-                                                    type="button">멀티패스 동기화</button>
+                                                    type="button">외부 스토리지 동기화</button>
                                                 </li>
                                                 <li class="pf-c-divider" role="separator"></li>
-                                                <li id="gfs-qdevice-init" style="display: none;">
+                                                <li>
+                                                    <button class="pf-c-dropdown__menu-item" type="button"
+                                                        id="menu-item-gfs-hba-wwn-list">WWN 목록 조회</button>
+                                                </li>
+                                                <li class="pf-c-divider" role="separator"></li>
+                                                <li id="gfs-host-remove">
+                                                    <button id="button-gfs-host-remove"
+                                                    class="pf-c-dropdown__menu-item"
+                                                    type="button">호스트 제거</button>
+                                                </li>
+                                                <!-- <li id="gfs-qdevice-init" style="display: none;">
                                                     <button id="button-gfs-qdevice-init"
                                                     class="pf-c-dropdown__menu-item pf-m-disabled"
                                                     type="button">Quorum 초기화</button>
-                                                </li>
+                                                </li> -->
                                             </ul>
                                         </div>
                                     </div>
@@ -196,6 +208,32 @@
                                                 <li id="scvm-before-bootstrap-run"></li>
                                                 <li id="scvm-after-update-glue-config"></li>
                                                 <li id="pfmp-bootstrap-run"></li>
+                                                <li class="pf-c-divider" role="separator"></li>
+                                                <li id="gfs-multipath-sync">
+                                                    <button id="button-gfs-multipath-sync"
+                                                    name="button-gfs-multipath-sync-name"
+                                                    class="pf-c-dropdown__menu-item"
+                                                    type="button">외부 스토리지 동기화</button>
+                                                </li>
+                                                <li class="pf-c-divider" role="separator"></li>
+                                                <li>
+                                                    <button class="pf-c-dropdown__menu-item" type="button"
+                                                        id="menu-item-set-hci-clvm-disk-add">CLVM 디스크 추가</button>
+                                                </li>
+                                                <li>
+                                                    <button class="pf-c-dropdown__menu-item" type="button"
+                                                        id="menu-item-set-hci-clvm-disk-delete">CLVM 디스크 삭제</button>
+                                                </li>
+                                                <li class="pf-c-divider" role="separator"></li>
+                                                <li>
+                                                    <button class="pf-c-dropdown__menu-item" type="button"
+                                                        id="menu-item-set-hci-clvm-disk-info">CLVM 디스크 정보</button>
+                                                </li>
+                                                <li class="pf-c-divider" role="separator"></li>
+                                                <li>
+                                                    <button class="pf-c-dropdown__menu-item" type="button"
+                                                        id="menu-item-hci-hba-wwn-list">WWN 목록 조회</button>
+                                                </li>
                                                 <li class="pf-c-divider" role="separator"></li>
                                                 <li>
                                                     <button class="pf-c-dropdown__menu-item pf-m-disabled" type="button"
@@ -1464,15 +1502,12 @@
             <div class="pf-c-modal-box__body">
                 <div>이중화 구성할 클라우드센터 가상머신의 관리 IP를 입력해주세요.</div>
                 <form novalidate class="pf-c-form pf-m-horizontal" >
-
                     <div class="pf-c-form__group-label" style="margin-left:15px;margin-top:15px">
                         <label class="pf-c-form__label" for="form-input-ccvm-dup-mngt-ip" style="margin-right:15px">
                             <span class="pf-c-form__label-text">관리 IP</span>
                         </label>
                         <input class="pf-c-form-control" style="width:50%" type="text" id="form-input-ccvm-dup-mngt-ip" name="form-input-ccvm-dup-mngt-ip" placeholder="xxx.xxx.xxx.xxx 형식으로 입력"/>
                     </div>
-
-
                 </form>
             </div>
             <footer class="pf-c-modal-box__footer">
@@ -1535,7 +1570,7 @@
 </div>
 
 <!-- 클라우드센터 쿼럼 초기화 : Modal 영역 시작 -->
-<div id="div-modal-cloud-vm-qdevice-init" class="pf-c-backdrop" style="display:none">
+<!-- <div id="div-modal-cloud-vm-qdevice-init" class="pf-c-backdrop" style="display:none">
     <div class="pf-l-bullseye">
         <div class="pf-c-modal-box pf-m-sm" role="dialog" aria-modal="true" aria-label="Cloud VM qdevice-init">
             <button id="button-close-modal-cloud-vm-qdevice-init" aria-disabled="false" aria-label="Close"
@@ -1556,7 +1591,7 @@
             </footer>
         </div>
     </div>
-</div>
+</div> -->
 <!-- 클라우드센터 쿼럼 초기화 : Modal 영역 끝 -->
 <!-- CLVM 디스크 추가 : Modal 영역 시작 -->
 <div id="div-modal-clvm-disk-add" class="pf-c-backdrop" style="display:none">
@@ -1838,6 +1873,113 @@
     </div>
 </div>
 <!-- GFS 디스크 추가 : Modal 영역 끝 -->
+<!-- GFS 호스트 제거 : Modal 영역 시작 -->
+<div id="div-modal-gfs-host-remove" class="pf-c-backdrop" style="display:none">
+    <div class="pf-l-bullseye">
+        <div class="pf-c-modal-box pf-m-sm" role="dialog" aria-modal="true" aria-label="GFS Host Remove">
+            <button id="button-close-gfs-host-remove" aria-disabled="false" aria-label="Close"
+                class="pf-c-button pf-m-plain" type="button">
+                <i class="fas fa-times" aria-hidden="true"></i>
+            </button>
+            <header class="pf-c-modal-box__header">
+                <h1 class="pf-c-modal-box__title"><span class="pf-c-modal-box__title-text">호스트 제거</span></h1>
+            </header>
+            <div class="pf-c-modal-box__body">
+                <div>제거할 호스트를 선택해 주세요.</div>
+                <div>
+                    <div class="pf-c-dropdown">
+                        <select class="pf-c-form-control" id="form-select-gfs-host-remove"
+                            name="form-select-gfs-host-remove" style="width:100%">
+                        </select>
+                    </div>
+                </div>
+                <div style="color: var(--pf-global--danger-color--100); margin-top: 20px;"><i class="fas fa-fw fa-exclamation-triangle" aria-hidden="true" style="color: red;"></i>호스트를 제거하면 해당 호스트는 클러스터에서 제외되며, 더 이상 자원을 사용할 수 없습니다.</div>
+            </div>
+            <div id="modal-div-gfs-host-remove" class="pf-c-modal-box__body pf-l-flex pf-m-align-items-center">
+                <p>호스트명 확인</p>
+                <label class="pf-c-switch">
+                    <input id="modal-input-gfs-host-remove" class="pf-c-switch__input" type="checkbox" aria-label="호스트명 체크">
+                    <span class="pf-c-switch__toggle">
+                        <div id="modal-switch-gfs-host-remove" class="pf-c-switch__toggle-icon" aria-hidden="true"></div>
+                    </span>
+                </label>
+            </div>
+            <footer class="pf-c-modal-box__footer">
+                <button id="button-execution-modal-gfs-host-remove" aria-disabled="false"
+                    class="pf-c-button pf-m-primary" type="button" data-ouia-safe="true" disabled>실행</button>
+                <button id="button-cancel-modal-gfs-host-remove" aria-disabled="false" class="pf-c-button pf-m-link"
+                    type="button" data-ouia-safe="true">취소</button>
+            </footer>
+        </div>
+    </div>
+</div>
+<!--GFS 호스트 제거 : Modal 영역 끝 -->
+<!-- 외부 스토리지 동기화  : Modal 영역 시작 -->
+<div id="div-modal-multipath-sync" class="pf-c-backdrop" style="display:none">
+    <div class="pf-l-bullseye">
+        <div class="pf-c-modal-box pf-m-sm" role="dialog" aria-modal="true" aria-label="Multipath Sync">
+            <button id="button-close-modal-multipath-sync" aria-disabled="false" aria-label="Close"
+                class="pf-c-button pf-m-plain" type="button">
+                <i class="fas fa-times" aria-hidden="true"></i>
+            </button>
+            <header class="pf-c-modal-box__header">
+                <h1 class="pf-c-modal-box__title"><span class="pf-c-modal-box__title-text">외부 스토리지 동기화</span>
+                </h1>
+            </header>
+            <div class="pf-c-modal-box__body">
+                <div> 동기화를 진행하시겠습니까?<br/><br/><p style="color:maroon;"><i class="fas fa-fw fa-exclamation-triangle" aria-hidden="true" style="color: orange;"></i>해당 장치는 반드시 이중화되어 있어야 합니다. 만약 싱글 패스로 구성되어 있다면 실행하지 마세요.</p></div>
+            </div>
+            <div id="modal-div-multipath-sync" class="pf-c-modal-box__body pf-l-flex pf-m-align-items-center">
+                <p>외부 스토리지 설정 확인</p>
+                <label class="pf-c-switch">
+                    <input id="modal-input-multipath-sync" class="pf-c-switch__input" type="checkbox" aria-label="외부 스토리지 체크">
+                    <span class="pf-c-switch__toggle">
+                        <div id="modal-switch-multipath-sync" class="pf-c-switch__toggle-icon" aria-hidden="true"></div>
+                    </span>
+                </label>
+            </div>
+            <footer class="pf-c-modal-box__footer">
+                <button id="button-execution-modal-multipath-sync" aria-disabled="false"
+                    class="pf-c-button pf-m-primary" type="button" data-ouia-safe="true" disabled>실행</button>
+                <button id="button-cancel-modal-multipath-sync" aria-disabled="false" class="pf-c-button pf-m-link"
+                    type="button" data-ouia-safe="true">취소</button>
+            </footer>
+        </div>
+    </div>
+</div>
+<!-- 외부 스토리지 동기화 : Modal 영역 끝 -->
+<!-- WWN 목록 조회 : Modal 영역 시작 -->
+<div id="div-modal-hba-wwn-list" class="pf-c-backdrop" style="display:none">
+    <div class="pf-l-bullseye">
+        <div class="pf-c-modal-box pf-m-md" role="dialog" aria-modal="true" aria-label="GFS CLVM Disk Info">
+            <button id="button-close-modal-hba-wwn-list" aria-disabled="false" aria-label="Close"
+                class="pf-c-button pf-m-plain" type="button">
+                <i class="fas fa-times" aria-hidden="true"></i>
+            </button>
+            <header class="pf-c-modal-box__header">
+                <h1 class="pf-c-modal-box__title">
+                    <span class="pf-c-modal-box__title-text">WWN 목록</span>
+                </h1>
+            </header>
+            <div class="pf-c-modal-box__body">
+                <form novalidate class="pf-c-form pf-m-horizontal">
+                    <section class="pf-c-form__section">
+                        <div class="pf-c-form__group" style="display: block;">
+                            <div class="pf-c-form__group-control pf-m-stack" id="hba-wwn-list"
+                                style="margin-top:8px;max-height: 400px;overflow-y: auto;">
+                            </div>
+                        </div>
+                    </section>
+                </form>
+            </div>
+            <footer class="pf-c-modal-box__footer">
+                <button id="button-execution-modal-hba-wwn-list" aria-disabled="false"
+                    class="pf-c-button pf-m-primary" type="button" data-ouia-safe="true">확인</button>
+            </footer>
+        </div>
+    </div>
+</div>
+<!-- WWN 목록 조회 : Modal 영역 끝 -->
 <!-- 모달 영역 끝  -->
 
 <!-- 클라우드센터VM 용량 변경에 관한 modal : ./src/features/cloud-vm-change.html을 내용으로 load -->
@@ -1850,6 +1992,47 @@
 <script src="./src/features/card-cloud-cluster-status.js"></script>
 <script src="./src/common/logger.js"></script>
 <!-- 해당 페이지에 필요한 javascript 파일 추가 영역 끝 -->
+
+<!-- 모달 영역 끝 부분에 추가 -->
+<!-- 라이센스 관리 : Modal 영역 시작 -->
+<div id="div-modal-license-register" class="pf-c-backdrop" style="display:none">
+    <div class="pf-l-bullseye">
+        <div class="pf-c-modal-box pf-m-sm" role="dialog" aria-modal="true" aria-label="License Registration">
+            <button id="button-close-modal-license-register" aria-disabled="false" aria-label="Close"
+                class="pf-c-button pf-m-plain" type="button">
+                <i class="fas fa-times" aria-hidden="true"></i>
+            </button>
+            <header class="pf-c-modal-box__header">
+                <h1 class="pf-c-modal-box__title"><span class="pf-c-modal-box__title-text">라이센스 관리</span></h1>
+            </header>
+            <div class="pf-c-modal-box__body">
+                <form novalidate class="pf-c-form pf-m-horizontal">
+                    <div class="pf-c-form__group">
+                        <div class="pf-c-form__group-label">
+                            <label class="pf-c-form__label" for="input-license-file">
+                                <span class="pf-c-form__label-text">라이센스 파일</span>
+                                <span class="pf-c-form__label-required" aria-hidden="true">&#42;</span>
+                            </label>
+                        </div>
+                        <div class="pf-c-form__group-control">
+                            <input class="pf-c-form-control" type="file" id="input-license-file" name="input-license-file" accept="*" required />
+                        </div>
+                    </div>
+                </form>
+                <div id="div-license-description" class="pf-c-content" style="margin-top:20px">
+                    <p><i class="fas fa-info-circle"></i> 라이센스 파일을 선택해주세요.</p>
+                </div>
+            </div>
+            <footer class="pf-c-modal-box__footer">
+                <button id="button-execution-modal-license-register" aria-disabled="false"
+                    class="pf-c-button pf-m-primary" type="button" data-ouia-safe="true" disabled>실행</button>
+                <button id="button-cancel-modal-license-register" aria-disabled="false"
+                    class="pf-c-button pf-m-link" type="button" data-ouia-safe="true">취소</button>
+            </footer>
+        </div>
+    </div>
+</div>
+<!-- 라이센스 관리 : Modal 영역 끝 -->
 
 </body>
 

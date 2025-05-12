@@ -134,7 +134,7 @@ def resetCloudCenter(args):
             return createReturn(code=200, val="cloud center reset success")
         else:
             return createReturn(code=500, val="cloud center reset fail")
-    elif os_type == "general-virtualization":
+    elif os_type == "ablestack-vm":
         pcs_list = []
 
         for i in range(len(json_data["clusterConfig"]["pcsCluster"])):

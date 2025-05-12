@@ -18,6 +18,8 @@ let interval;
 var gfs_file_system_arr = [];
 
 $(document).ready(function(){
+    // 라이센스 관리 버튼 초기 표시
+    $('#button-open-modal-license-register').show();
 
     $('#dropdown-menu-storage-cluster-status').hide();
     $('#dropdown-menu-cloud-cluster-status').hide();
@@ -78,32 +80,200 @@ $(document).ready(function(){
     $('#div-modal-db-backup-cloud-vm-first').load("./src/features/cloud-vm-dbbackup.html");
     $('#div-modal-db-backup-cloud-vm-first').hide();
 
-    // 일반 가상화일 경우 화면 변환
+    // 서버 가상화일 경우 화면 변환
     screenConversion();
 
-    cockpit.spawn(['python3', pluginpath + '/python/pcs/pcsExehost.py'])
-    .then(function (data) {
-        let retVal = JSON.parse(data);
-        pcs_exe_host = retVal.val;
+    ribbonWorker();
+    //30초마다 화면 정보 갱신
+    setInterval(() => {
+        createLoggerInfo("Start collecting ablestack status information : setInterval()");
+        // 배포상태 조회(비동기)완료 후 배포상태에 따른 요약리본 UI 설정
         ribbonWorker();
-        //30초마다 화면 정보 갱신
-        setInterval(() => {
-            createLoggerInfo("Start collecting ablestack status information : setInterval()");
-            // 배포상태 조회(비동기)완료 후 배포상태에 따른 요약리본 UI 설정
-            ribbonWorker();
-        }, 30000);
-    })
-    .catch(function (err) {
-        ribbonWorker();
-        //30초마다 화면 정보 갱신
-        setInterval(() => {
-            createLoggerInfo("Start collecting ablestack status information : setInterval()");
-            // 배포상태 조회(비동기)완료 후 배포상태에 따른 요약리본 UI 설정
-            ribbonWorker();
-        }, 30000);
-        createLoggerInfo("pcsExeHost err");
-        console.log("pcsExeHost err : " + err);
+    }, 30000);
+
+    // 라이센스 관련 이벤트 핸들러
+    initializeLicenseHandlers();
+    checkLicenseStatus();
+
+    // 초기 버튼 비활성화
+    $('#button-execution-modal-license-register').prop('disabled', true);
+
+    // 상태 알림 모달 닫기
+    $('#modal-status-alert-button-close1, #modal-status-alert-button-close2').on('click', function(){
+        $('#div-modal-status-alert').hide();
     });
+
+    // 라이센스 키 입력 필드 유효성 검사
+    $('#input-license-key').on('input', function(){
+        validateLicenseInputs();
+    });
+
+    // 라이센스 파일 선택 필드 유효성 검사
+    $('#input-license-file').on('change', function(){
+        validateLicenseInputs();
+    });
+
+    // 입력값 유효성 검사 함수 수정
+    function validateLicenseInputs() {
+        const licenseFile = $('#input-license-file')[0].files[0];
+        $('#button-execution-modal-license-register').prop('disabled', !licenseFile);
+    }
+
+    // 추가 입력 필드에 대한 유효성 검사 이벤트 리스너
+    $('#input-license-type').on('change', function(){
+        validateLicenseInputs();
+    });
+
+    $('#input-product-id').on('input', function(){
+        validateLicenseInputs();
+    });
+
+    $('#input-license-start-date').on('change', function(){
+        validateLicenseInputs();
+    });
+
+    $('#input-license-end-date').on('change', function(){
+        validateLicenseInputs();
+    });
+
+    // 라이센스 상태 확인 함수
+    function checkLicenseStatus() {
+        cockpit.spawn(['/usr/share/cockpit/ablestack/python/license/register_license.py', '--status'])
+            .then(function(data) {
+                const result = JSON.parse(data);
+
+                // 라이센스 상태에 따른 UI 업데이트
+                updateLicenseUI(result);
+
+                // 라이센스 버튼은 항상 표시되도록 수정
+                $('#button-open-modal-license-register').show();
+
+                return result;
+            })
+            .catch(function(error) {
+                console.error("라이센스 상태 확인 실패:", error);
+                // 에러 시에도 버튼은 표시
+                $('#button-open-modal-license-register').show();
+
+                // 에러 UI 업데이트
+                $('#div-license-description').html(`
+                    <div class="license-info error">
+                        <p><i class="fas fa-exclamation-triangle" style="color: var(--pf-global--danger-color--100);"></i> 라이센스 상태를 확인할 수 없습니다.</p>
+                        <p>시스템 오류가 발생했습니다.</p>
+                    </div>
+                `);
+                throw error;
+            });
+    }
+
+    // 라이센스 상태에 따른 UI 업데이트 함수
+    function updateLicenseUI(result) {
+        let licenseDescription = '';
+
+        if(result.code == "200" && result.val && result.val.status === 'active') {
+            // 유효한 라이센스가 있는 경우
+            licenseDescription = `
+                <div class="license-info">
+                    <p><i class="fas fa-check-circle" style="color: var(--pf-global--success-color--100);"></i> 라이센스가 등록되어 있습니다.</p>
+                    <p><strong>시작일:</strong> ${result.val.issued}</p>
+                    <p><strong>만료일:</strong> ${result.val.expired}</p>
+                    <hr>
+                    <p class="text-muted">새로운 라이센스를 등록하면 기존 라이센스가 교체됩니다.</p>
+                </div>
+            `;
+        } else if(result.code == "404") {
+            // 라이센스가 없는 경우
+            licenseDescription = `
+                <div class="license-info">
+                    <p><i class="fas fa-exclamation-circle" style="color: var(--pf-global--warning-color--100);"></i> 등록된 라이센스가 없습니다.</p>
+                    <p>라이센스 파일을 선택하여 등록해주세요.</p>
+                </div>
+            `;
+        } else {
+            // 오류가 발생한 경우
+            licenseDescription = `
+                <div class="license-info error">
+                    <p><i class="fas fa-exclamation-triangle" style="color: var(--pf-global--danger-color--100);"></i> 라이센스 상태 확인 중 오류가 발생했습니다.</p>
+                    <p>${result.val}</p>
+                </div>
+            `;
+        }
+
+        $('#div-license-description').html(licenseDescription);
+    }
+
+    // 라이센스 관련 이벤트 핸들러
+    function initializeLicenseHandlers() {
+        // 라이센스 등록 모달 열기
+        $('#button-open-modal-license-register').on('click', function(){
+            $('#div-modal-license-register').show();
+            checkLicenseStatus();
+        });
+
+        // 모달 닫기
+        $('#button-close-modal-license-register, #button-cancel-modal-license-register').on('click', function(){
+            $('#div-modal-license-register').hide();
+            $('#input-license-file').val("");
+        });
+
+        // 파일 선택 시 버튼 활성화
+        $('#input-license-file').on('change', function(){
+            $('#button-execution-modal-license-register').prop('disabled', !this.files.length);
+        });
+
+        // 라이센스 등록 실행
+        $('#button-execution-modal-license-register').on('click', function(){
+            const licenseFile = $('#input-license-file')[0].files[0];
+            if (!licenseFile) {
+                alert("라이센스 파일을 선택해주세요.");
+                return;
+            }
+
+            // 로딩 스피너 표시
+            $('#div-modal-spinner-header-txt').text('라이센스 등록중입니다...');
+            $('#div-modal-spinner-body-txt').text('라이센스를 등록하는 중입니다. 잠시만 기다려주세요.');
+            $('#div-modal-spinner').show();
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const fileContent = e.target.result;
+                const base64Content = btoa(fileContent);
+
+                // 라이센스 등록 API 호출
+                cockpit.spawn([
+                    'python3',
+                    '/usr/share/cockpit/ablestack/python/license/register_license.py',
+                    '--license-content',
+                    base64Content,
+                    '--original-filename',
+                    licenseFile.name
+                ], { superuser: true })
+                .then(function(data) {
+                    $('#div-modal-spinner').hide();
+                    const result = JSON.parse(data);
+                    if(result.code == "200") {
+                        $('#div-modal-license-register').hide();
+                        alert("라이센스가 성공적으로 등록되었습니다.");
+                        location.reload();
+                    } else {
+                        alert("라이센스 등록 실패: " + result.val);
+                        location.reload();
+                    }
+                })
+                .catch(function(error) {
+                    $('#div-modal-spinner').hide();
+                    $('#div-modal-license-register').hide();
+                    console.error("Error:", error);
+                    alert("라이센스 등록 중 오류가 발생했습니다: " + error);
+                    location.reload();
+                });
+            };
+            reader.readAsBinaryString(licenseFile);
+        });
+    }
+
+    // 페이지 로드 시 라이센스 상태 확인
+    checkLicenseStatus();
 });
 // document.ready 영역 끝
 
@@ -634,6 +804,7 @@ $('#button-execution-modal-remove-cube-host').on('click', function(){
 $('#button-cancel-modal-remove-cube-host').on('click', function(){
     $('#div-modal-remove-cube-host').hide();
 });
+
 /** move cube host config modal 관련 action end */
 
 
@@ -1162,7 +1333,7 @@ function checkDeployStatus(){
                     showRibbon('warning','스토리지센터 및 클라우드센터 VM이 배포되지 않았습니다. 스토리지센터 VM 배포를 진행하십시오.');
                 }else{
                     if(step3!="true"){
-                        showRibbon('warning','스토리지센터 대시보드에 연결할 수 있도록 스토리지센터 VM Bootstrap 실행 작업을 진행하십시오.');
+                        showRibbon('warning','스토리지센터 대시보드에 연결할 수 있도록 스토리지센터 구성하기 작업을 진행하십시오.');
                     }else{
                         if(step8!="true" && step4=="Health Err"||step4==null){
                             // 스토리지센터 연결 버튼 show
@@ -1187,7 +1358,7 @@ function checkDeployStatus(){
                                     showRibbon('warning','클라우드센터 VM이 배포되지 않았습니다. 클라우드센터 VM 배포를 진행하십시오.');
                                 }else{
                                     if(step8!="true" && step7!="true"){
-                                        showRibbon('warning','클라우드센터에 연결할 수 있도록 클라우드센터 VM Bootstrap 실행 작업을 진행하십시오.');
+                                        showRibbon('warning','클라우드센터에 연결할 수 있도록 클라우드센터 구성하기 작업을 진행하십시오.');
                                     }else{
                                         // 스토리지센터 연결 버튼, 클라우드센터 연결 버튼 show, 모니터링센터 구성 버튼 show
                                         $('#button-link-storage-center-dashboard').show();
@@ -1243,7 +1414,7 @@ function checkDeployStatus(){
                     showRibbon('warning','스토리지센터 및 파워 플렉스 관리 플랫폼 및 클라우드센터 VM이 배포되지 않았습니다. 스토리지센터 VM 배포를 진행하십시오.');
                 }else{
                     if(step3!="true"){
-                        showRibbon('warning','스토리지센터의 설정을 위해 스토리지센터 VM Bootstrap 실행 작업을 진행하십시오.');
+                        showRibbon('warning','스토리지센터의 설정을 위해 스토리지센터 구성하기 작업을 진행하십시오.');
                     }else{
                         //여기서 들어가야지 pfmp에 대한
                         if(step8!="true" && ((step9=="HEALTH_ERR"||step9=="null") && step10 == "false")){
@@ -1267,7 +1438,7 @@ function checkDeployStatus(){
                                         showRibbon('warning','클라우드센터 VM이 배포되지 않았습니다. 클라우드센터 VM 배포를 진행하십시오.');
                                     }else{
                                         if(step8!="true" && step7!="true"){
-                                            showRibbon('warning','클라우드센터에 연결할 수 있도록 클라우드센터 VM Bootstrap 실행 작업을 진행하십시오.');
+                                            showRibbon('warning','클라우드센터에 연결할 수 있도록 클라우드센터 구성하기 작업을 진행하십시오.');
                                         }else{
                                             // 스토리지센터 연결 버튼, 클라우드센터 연결 버튼 show, 모니터링센터 구성 버튼 show
                                             $('#button-link-storage-center-dashboard').show();
@@ -1308,7 +1479,7 @@ function checkDeployStatus(){
                         }else{
                             if(step10!="true"){
                                 $('#menu-item-pfmp-install').removeClass('pf-m-disabled');
-                                showRibbon('warning','파워플렉스 관리 플랫폼의 쿠버네티스 설정을 위해 파워플렉스 관리 플랫폼 VM Bootstrap 실행 작업을 진행하십시오.');
+                                showRibbon('warning','파워플렉스 관리 플랫폼의 쿠버네티스 설정을 위해 파워플렉스 관리 플랫폼 VM 구성하기 작업을 진행하십시오.');
                             }else{
                                 if(step8!="true" && (step5=="HEALTH_ERR1"||step5=="HEALTH_ERR2"||step5==null)){
                                     //클라우드센터 VM 배포 버튼
@@ -1327,7 +1498,7 @@ function checkDeployStatus(){
                                         showRibbon('warning','클라우드센터 VM이 배포되지 않았습니다. 클라우드센터 VM 배포를 진행하십시오.');
                                     }else{
                                         if(step8!="true" && step7!="true"){
-                                            showRibbon('warning','클라우드센터에 연결할 수 있도록 클라우드센터 VM Bootstrap 실행 작업을 진행하십시오.');
+                                            showRibbon('warning','클라우드센터에 연결할 수 있도록 클라우드센터 구성하기 작업을 진행하십시오.');
                                         }else{
                                             // 스토리지센터 연결 버튼, 클라우드센터 연결 버튼 show, 모니터링센터 구성 버튼 show
                                             $('#button-link-storage-center-dashboard').show();
@@ -1369,7 +1540,7 @@ function checkDeployStatus(){
                     }
                 }
             }
-        }else if (os_type == "general-virtualization"){
+        }else if (os_type == "ablestack-vm"){
             console.log("step1 :: " + step1 + ", step5 :: " + step5 + ", step6 :: " + step6 + ", step7 :: " + step7 + ", step8 :: " + step8);
 
             if (step1 != "true"){
@@ -1393,7 +1564,7 @@ function checkDeployStatus(){
                         showRibbon('warning','클라우드센터 VM이 배포되지 않았습니다. 클라우드센터 VM 배포를 진행하십시오.');
                     }else{
                         if(step8!="true" && step7!="true"){
-                            showRibbon('warning','클라우드센터에 연결할 수 있도록 클라우드센터 VM Bootstrap 실행 작업을 진행하십시오.');
+                            showRibbon('warning','클라우드센터에 연결할 수 있도록 클라우드센터 구성하기 작업을 진행하십시오.');
                         }else{
                             // 스토리지센터 연결 버튼, 클라우드센터 연결 버튼 show, 모니터링센터 구성 버튼 show
                             $('#button-link-cloud-center').show();
@@ -1563,7 +1734,7 @@ function saveHostInfo(){
 }
 
 function ribbonWorker() {
-    if (os_type == "general-virtualization"){
+    if (os_type == "ablestack-vm"){
         Promise.all([
             pcsExeHost(),
             checkConfigStatus(),
@@ -1577,7 +1748,15 @@ function ribbonWorker() {
             })
             .finally(function () {
                 checkDeployStatus();
+                // checkHostandStonithrecovery();
             });
+    }else if (os_type == "PowerFlex"){
+        Promise.all([pcsExeHost(), checkConfigStatus(), checkStorageClusterStatus(),
+            checkStorageVmStatus(), CardCloudClusterStatus(), new CloudCenterVirtualMachine().checkCCVM()]).then(function(){
+                scanHostKey();
+                checkDeployStatus();
+                // checkHostandStonithrecovery();
+        });
     }else{
         Promise.all([pcsExeHost(), checkConfigStatus(), checkStorageClusterStatus(),
             checkStorageVmStatus(), CardCloudClusterStatus(), new CloudCenterVirtualMachine().checkCCVM()]).then(function(){
@@ -1656,19 +1835,19 @@ function updatePfmpInstall(time_value, unit) {
  * Meathod Name : screenConversion
  * Date Created : 2024.09.19
  * Writer  : 정민철
- * Description : 일반 가상화에 대한 화면 처리
+ * Description : 서버 가상화에 대한 화면 처리
  * Parameter : 없음
  * Return  : 없음
  * History  : 2024.09.19 최초 작성
  */
 function screenConversion(){
-    if (os_type == "general-virtualization"){
+    if (os_type == "ablestack-vm"){
         $('#div-card-gfs-cluster-status').show();
         $('#div-card-storage-cluster-status').hide();
         $('#div-card-storage-vm-status').hide();
         $('#div-card-gfs-disk-status').show();
         $('#gfs-maintenance-update').show();
-        $('#gfs-qdevice-init').show();
+        // $('#gfs-qdevice-init').show();
     }
 }
 
@@ -2156,22 +2335,89 @@ function setDiskAction(type, action){
                         </div>
                     `;
                 }
-            } else {
+            }else {
                 output = '데이터가 존재하지 않습니다.<br>';
             }
 
             $('#gfs-disk-delete-list').append(output);
         });
 
+    }else if (type == "hba" && action == "list") {
+        var cmd = ["python3", pluginpath + "/python/clvm/disk_manage.py", "--list-hba-wwn"];
+
+        cockpit.spawn(cmd).then(function(data) {
+            // 초기화
+            $('#hba-wwn-list').empty();
+
+            // JSON 데이터 파싱
+            var result = JSON.parse(data);
+
+            // 결과 리스트 가져오기
+            var wwnList = result.val;
+
+            // 테이블 생성
+            var output = `
+                <table border="1" style="width: 100%; border-collapse: collapse; text-align: left;">
+                    <thead>
+                        <tr>
+                            <th style="padding: 8px; background-color: #f2f2f2;">호스트명</th>
+                            <th style="padding: 8px; background-color: #f2f2f2;">WWN</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            if (wwnList.length > 0) {
+                // 데이터를 순회하면서 테이블 행 추가
+                for (var i = 0; i < wwnList.length; i++) {
+                    var wwn = wwnList[i];
+                    output += `
+                        <tr>
+                            <td style="padding: 8px; border-bottom: 1px solid #ddd;">${wwn.hostname}</td>
+                            <td style="padding: 8px; border-bottom: 1px solid #ddd;">
+                                ${wwn.wwn.join('<br>')}
+                            </td>
+                        </tr>
+                    `;
+                }
+            } else {
+                output += `
+                    <tr>
+                        <td colspan="2" style="padding: 8px; text-align: center;">데이터가 존재하지 않습니다.</td>
+                    </tr>
+                `;
+            }
+
+            // 테이블 닫기
+            output += `
+                    </tbody>
+                </table>
+            `;
+
+            // 출력 데이터 추가
+            $('#hba-wwn-list').append(output);
+
+        }).catch(function() {
+            createLoggerInfo("setDiskAction error");
+        });
     }
+
 }
+
 $('#menu-item-set-gfs-clvm-disk-add').on('click',function(){
+    setDiskAction("clvm","add")
+    $('#div-modal-clvm-disk-add').show();
+});
+$('#menu-item-set-hci-clvm-disk-add').on('click',function(){
     setDiskAction("clvm","add")
     $('#div-modal-clvm-disk-add').show();
 });
 $('#button-close-modal-clvm-disk-add, #button-cancel-modal-clvm-disk-add').on('click',function(){
     $('#div-modal-clvm-disk-add').hide();
 });
+$('#button-close-modal-hba-wwn-list, #button-execution-modal-hba-wwn-list').on('click', function(){
+    $('#div-modal-hba-wwn-list').hide();
+})
 $('#button-execution-modal-clvm-disk-add').on('click',function(){
     $('#div-modal-clvm-disk-add').hide();
     $('#div-modal-spinner-header-txt').text("CLVM 디스크 논리 볼륨을 구성 중입니다.")
@@ -2210,6 +2456,10 @@ $('#div-modal-clvm-disk-add').on('change', 'input[type=checkbox][name="form-clvm
 });
 
 $('#menu-item-set-gfs-clvm-disk-delete').on('click',function(){
+    setDiskAction("clvm","delete")
+    $('#div-modal-clvm-disk-delete').show();
+});
+$('#menu-item-set-hci-clvm-disk-delete').on('click',function(){
     setDiskAction("clvm","delete")
     $('#div-modal-clvm-disk-delete').show();
 });
@@ -2262,8 +2512,20 @@ $('#div-modal-clvm-disk-delete').on('change', 'input[type=checkbox][name="form-c
     $('#button-execution-modal-clvm-disk-delete').prop('disabled', !isChecked);
 });
 $('#menu-item-set-gfs-clvm-disk-info').on('click',function(){
-    setDiskAction("clvm", "list")
+    setDiskAction("clvm", "list");
     $('#div-modal-clvm-disk-info').show();
+});
+$('#menu-item-set-hci-clvm-disk-info').on('click',function(){
+    setDiskAction("clvm", "list");
+    $('#div-modal-clvm-disk-info').show();
+});
+$('#menu-item-hci-hba-wwn-list').on('click',function(){
+    setDiskAction("hba", "list");
+    $('#div-modal-hba-wwn-list').show();
+});
+$('#menu-item-gfs-hba-wwn-list').on('click', function(){
+    setDiskAction("hba", "list");
+    $('#div-modal-hba-wwn-list').show();
 });
 $('#button-execution-modal-clvm-disk-info, #button-close-modal-clvm-disk-info').on('click',function(){
     $('#div-modal-clvm-disk-info').hide();
@@ -2311,53 +2573,69 @@ $('#button-cancel-modal-gfs-maintenance-setting, #button-close-modal-cloud-vm-ma
     $('#div-modal-gfs-maintenance-setting').hide();
 })
 
-$('#button-gfs-qdevice-init').on('click', function(){
-    $('#div-modal-cloud-vm-qdevice-init').show();
+// $('#button-gfs-qdevice-init').on('click', function(){
+//     $('#div-modal-cloud-vm-qdevice-init').show();
+// });
+// $('#button-close-modal-cloud-vm-qdevice-init, #button-cancel-modal-cloud-vm-qdevice-init').on('click', function(){
+//     $('#div-modal-cloud-vm-qdevice-init').hide();
+// });
+// $('#button-execution-modal-cloud-vm-qdevice-init').on('click', function(){
+//     $('#div-modal-cloud-vm-qdevice-init').hide();
+
+//     $('#div-modal-spinner-header-txt').text('쿼럼을 초기화하고 있습니다.');
+//     $('#div-modal-spinner').show();
+
+//     $("#modal-status-alert-title").html("쿼럼 초기화");
+//     $("#modal-status-alert-body").html("쿼럼 초기화를 실패하였습니다.<br/>쿼럼 상태를 확인해주세요.");
+
+//     cmd =["python3", pluginpath + "/python/gfs/gfs_manage.py", "--init-qdevice"];
+//     console.log(cmd);
+//     cockpit.spawn(cmd)
+//     .then(function(data){
+//         var retVal = JSON.parse(data);
+//         if(retVal.code == "200"){
+//             $('#div-modal-spinner').hide();
+//             $("#modal-status-alert-title").html("쿼럼 초기화 완료");
+//             $("#modal-status-alert-body").html("쿼럼 초기화를 완료하였습니다.");
+//             $('#div-modal-status-alert').show();
+//         }else{
+//             $('#div-modal-spinner').hide();
+//             $("#modal-status-alert-title").html("쿼럼 초기화 실패");
+//             $("#modal-status-alert-body").html("쿼럼 초기화를 실패하였습니다.");
+//             $('#div-modal-status-alert').show();
+//         }
+//     }).catch(function(data){
+//         $('#div-modal-spinner').hide();
+//         $('#div-modal-status-alert').show();
+//         createLoggerInfo("쿼럼 초기화 실패 : " + data);
+//     });
+
+// });
+
+$('[name="button-gfs-multipath-sync-name"]').on("click",function(){
+    $('#div-modal-multipath-sync').show();
 });
-$('#button-close-modal-cloud-vm-qdevice-init, #button-cancel-modal-cloud-vm-qdevice-init').on('click', function(){
-    $('#div-modal-cloud-vm-qdevice-init').hide();
-});
-$('#button-execution-modal-cloud-vm-qdevice-init').on('click', function(){
-    $('#div-modal-cloud-vm-qdevice-init').hide();
 
-    $('#div-modal-spinner-header-txt').text('쿼럼을 초기화하고 있습니다.');
-    $('#div-modal-spinner').show();
-
-    $("#modal-status-alert-title").html("쿼럼 초기화");
-    $("#modal-status-alert-body").html("쿼럼 초기화를 실패하였습니다.<br/>쿼럼 상태를 확인해주세요.");
-
-    cmd =["python3", pluginpath + "/python/gfs/gfs_manage.py", "--init-qdevice"];
-    console.log(cmd);
-    cockpit.spawn(cmd)
-    .then(function(data){
-        var retVal = JSON.parse(data);
-        if(retVal.code == "200"){
-            $('#div-modal-spinner').hide();
-            $("#modal-status-alert-title").html("쿼럼 초기화 완료");
-            $("#modal-status-alert-body").html("쿼럼 초기화를 완료하였습니다.");
-            $('#div-modal-status-alert').show();
-        }else{
-            $('#div-modal-spinner').hide();
-            $("#modal-status-alert-title").html("쿼럼 초기화 실패");
-            $("#modal-status-alert-body").html("쿼럼 초기화를 실패하였습니다.");
-            $('#div-modal-status-alert').show();
-        }
-    }).catch(function(data){
-        $('#div-modal-spinner').hide();
-        $('#div-modal-status-alert').show();
-        createLoggerInfo("쿼럼 초기화 실패 : " + data);
-    });
-
-});
-
-$('#button-gfs-multipath-sync').on("click",function(){
-    $('#div-modal-spinner-header-txt').text('멀티패스 장치 동기화하고 있습니다.');
+$('#button-execution-modal-multipath-sync').on("click",function(){
+    $('#div-modal-multipath-sync').hide();
+    $('#div-modal-spinner-header-txt').text('외부 스토리지 장치 동기화하고 있습니다.');
     $('#div-modal-spinner').show();
 
     cockpit.spawn(["sh", pluginpath + "/shell/host/multipath_sync.sh"])
-    .then(function(data){
+    .then(function(){
         $('#div-modal-spinner').hide();
-    })
+        $("#modal-status-alert-title").html("외부 스토리지 동기화");
+        $("#modal-status-alert-body").html("외부 스토리지 동기화를 완료되었습니다.");
+        $('#div-modal-status-alert').show();
+    });
+});
+$('#modal-input-multipath-sync').on('click', function(){
+    var condition = $("#button-execution-modal-multipath-sync").prop( 'disabled' );
+    $("#button-execution-modal-multipath-sync").prop("disabled", condition ? false : true);
+});
+
+$('#button-close-modal-multipath-sync, #button-cancel-modal-multipath-sync').on("click",function(){
+    $('#div-modal-multipath-sync').hide();
 });
 
 $('#menu-item-set-gfs-disk-add').on('click',function(){
@@ -2536,6 +2814,70 @@ $('#button-execution-modal-gfs-disk-delete').on('click', function() {
             $('#div-modal-status-alert').show();
         });
 });
+$('#button-gfs-host-remove').on('click', function(){
+    updateGfsHostList();
+    $('#div-modal-gfs-host-remove').show();
+});
+
+$('#button-cancel-modal-gfs-host-remove, #button-close-gfs-host-remove').on('click', function(){
+    $('#div-modal-gfs-host-remove').hide();
+});
+
+$('#modal-input-gfs-host-remove').on('click', function(){
+    var condition = $("#button-execution-modal-gfs-host-remove").prop( 'disabled' );
+    var check = $('#form-select-gfs-host-remove').val();
+
+    $("#button-execution-modal-gfs-host-remove").prop("disabled", condition ? (check ? false : true) : true);
+});
+
+$('#button-execution-modal-gfs-host-remove').on('click', function(){
+    $('#div-modal-gfs-host-remove').hide();
+    $('#div-modal-spinner-header-txt').text('CCVM 체크 및 마이그레이션 중');
+    $('#div-modal-spinner').show();
+    var remove_host_name = $('#form-select-gfs-host-remove option:selected').val();
+    var remove_host_ip = $('#form-select-gfs-host-remove option:selected').data('ip');
+    cmd = ['python3', pluginpath + '/python/gfs/gfs_manage.py', '--check-ccvm', '--target-ip', remove_host_ip];
+    console.log(cmd);
+    cockpit.spawn(cmd).then(function(data){
+        retVal = JSON.parse(data);
+        console.log(retVal);
+        if (retVal.code == "200" || retVal.code == "201"){
+            $('#div-modal-spinner-header-txt').text('호스트 제거 중');
+            cmd = ['python3', pluginpath + '/python/gfs/gfs_manage.py', '--remove-host', '--target-ip', remove_host_ip, '--hostname', remove_host_name];
+            console.log(cmd);
+            cockpit.spawn(cmd).then(function(data){
+                retVal = JSON.parse(data);
+                if (retVal.code == "200"){
+                    console.log(retVal);
+                    $('#div-modal-spinner').hide();
+                    $("#modal-status-alert-title").html("호스트 제거");
+                    $("#modal-status-alert-body").html("호스트 제거를 성공하였습니다.");
+                    $('#div-modal-status-alert').show();
+                }else{
+                    $('#div-modal-spinner').hide();
+                    $("#modal-status-alert-title").html("호스트 제거");
+                    $("#modal-status-alert-body").html("호스트를 제거를 실패하였습니다.");
+                    $('#div-modal-status-alert').show();
+                }
+            }).catch(function(){
+                $('#div-modal-spinner').hide();
+                $("#modal-status-alert-title").html("호스트 제거");
+                $("#modal-status-alert-body").html("호스트를 제거를 실패하였습니다.");
+                $('#div-modal-status-alert').show();
+            });
+        }else{
+            $('#div-modal-spinner').hide();
+            $("#modal-status-alert-title").html("CCVM 체크 중");
+            $("#modal-status-alert-body").html("CCVM 체크 및 마이그레이션을 실패하였습니다.");
+            $('#div-modal-status-alert').show();
+        }
+    }).catch(function(){
+        $('#div-modal-spinner').hide();
+        $("#modal-status-alert-title").html("CCVM 체크 중");
+        $("#modal-status-alert-body").html("CCVM 체크 및 마이그레이션을 실패하였습니다.");
+        $('#div-modal-status-alert').show();
+    });
+});
 /**
  * Meathod Name : gfsResourceStatus
  * Date Created : 2025.01.06
@@ -2671,9 +3013,8 @@ function gfsResourceStatus() {
                     }
                 }else{
                     if (gfs_fence_stopped_arr.length == 0){
-                        $("#gfs-fence-back-color").attr('class','pf-c-label pf-m-green');
-                        $("#gfs-fence-icon").attr('class','fas fa-fw fa-check-circle');
-                        $('#gfs-fence-status').text("Health OK");
+                        $("#gfs-fence-back-color").attr('class','pf-c-label pf-m-orange');
+                        $('#gfs-fence-status').text("Health Warn");
                         $('#gfs-fence-text').text('Started ( ' + gfs_fence_started_arr.join(', ') + ' ), Offline ( ' + gfs_fence_offline_arr.join(', ') + ' )');
                     }else if (gfs_fence_started_arr.length == 0){
                         $("#gfs-fence-back-color").attr('class','pf-c-label pf-m-orange');
@@ -2760,9 +3101,8 @@ function gfsResourceStatus() {
                         }
                     }else{
                         if (gfs_dlm_stop_arr.length == 0 && gfs_lvmlockd_stop_arr.length == 0) {
-                            $("#gfs-lock-back-color").attr('class', 'pf-c-label pf-m-green');
-                            $("#gfs-lock-icon").attr('class', 'fas fa-fw fa-check-circle');
-                            $('#gfs-lock-status').text("Health OK");
+                            $("#gfs-lock-back-color").attr('class', 'pf-c-label pf-m-orange');
+                            $('#gfs-lock-status').text("Health Warn");
                             $('#gfs-lock-text').html(
                                 'glue-dlm : Started ( ' + gfs_dlm_start_arr.join(', ') + ' ), Offline ( ' + gfs_dlm_offline_arr.join(', ') + ' )</br>' +
                                 'glue-lvmlockd : Started ( ' + gfs_lvmlockd_start_arr.join(', ') + ' ), Offline ( ' + gfs_lvmlockd_offline_arr.join(', ') + ' )'
@@ -2827,16 +3167,193 @@ function gfsResourceStatus() {
             }
             resolve();
         })
-        cockpit.spawn(['python3', pluginpath + '/python/gfs/gfs_manage.py', '--check-qdevice'])
-        .then(function(data){
-            var retVal =JSON.parse(data);
-            if (retVal.code == "200"){
-                sessionStorage.setItem("qdevice_status","true");
-                $('#button-gfs-qdevice-init').removeClass("pf-m-disabled");
-            }else{
-                sessionStorage.setItem("qdevice_status","false");
-            }
-            resolve();
-        })
+
+        // cockpit.spawn(['python3', pluginpath + '/python/gfs/gfs_manage.py', '--check-qdevice'])
+        // .then(function(data){
+        //     var retVal =JSON.parse(data);
+        //     if (retVal.code == "200" || retVal.code == "204"){
+        //         sessionStorage.setItem("qdevice_status","true");
+        //         $('#button-gfs-qdevice-init').removeClass("pf-m-disabled");
+        //     }else{
+        //         sessionStorage.setItem("qdevice_status","false");
+        //     }
+        //     resolve();
+        // })
 })
+}
+/**
+ * Meathod Name : updateGfsHostList
+ * Date Created : 2025.02.28
+ * Writer  : 정민철
+ * Description : GFS 호스트 제거를 위한 호스트 리스트
+ * Parameter : 없음
+ * Return  : 없음
+ * History  : 2025.02.28 최초 작성
+ */
+function updateGfsHostList(){
+    cockpit.spawn(['python3', pluginpath + '/python/gfs/gfs_manage.py', '--check-host']).then(function(data){
+        var result = JSON.parse(data);
+        if (result.code == "200"){
+            var hostList = result.val;
+            var selectHost = $('#form-select-gfs-host-remove');
+            selectHost.empty();
+            selectHost.append('<option value="">- 선택하십시오 -</option>');
+            for (var i = 0; i < hostList.length; i++){
+                selectHost.append('<option value="' + hostList[i].hostname + '" data-ip="' + hostList[i].ablecube + '">' + hostList[i].hostname + '</option>');
+            }
+        }
+    })
+}
+
+// 라이센스 상태 확인 및 표시
+function updateLicenseStatus() {
+    // superuser 권한으로 실행
+    cockpit.spawn(['python3', '/usr/share/cockpit/ablestack/python/license/register_license.py', '--status'], { superuser: true })
+        .then(function(data) {
+            const result = JSON.parse(data);
+            let licenseDescription = '';
+
+            if(result.code == "200" && result.val && result.val.status === 'active') {
+                // 유효한 라이센스가 있는 경우
+                licenseDescription = `
+                    <div class="license-info">
+                        <p><i class="fas fa-check-circle" style="color: var(--pf-global--success-color--100);"></i> 라이센스가 등록되어 있습니다.</p>
+                        <p><strong>시작일:</strong> ${result.val.issued}</p>
+                        <p><strong>만료일:</strong> ${result.val.expired}</p>
+                        <hr>
+                        <p class="text-muted">새로운 라이센스를 등록하면 기존 라이센스가 교체됩니다.</p>
+                    </div>
+                `;
+            } else if(result.code == "404") {
+                // 라이센스가 없는 경우
+                licenseDescription = `
+                    <div class="license-info">
+                        <p><i class="fas fa-exclamation-circle" style="color: var(--pf-global--warning-color--100);"></i> 등록된 라이센스가 없습니다.</p>
+                        <p>라이센스 파일을 선택하여 등록해주세요.</p>
+                    </div>
+                `;
+            } else {
+                // 오류가 발생한 경우
+                licenseDescription = `
+                    <div class="license-info error">
+                        <p><i class="fas fa-exclamation-triangle" style="color: var(--pf-global--danger-color--100);"></i> 라이센스 상태 확인 중 오류가 발생했습니다.</p>
+                        <p>${result.val}</p>
+                    </div>
+                `;
+            }
+
+            $('#div-license-description').html(licenseDescription);
+        })
+        .catch(function(error) {
+            console.error("라이센스 상태 확인 실패:", error);
+            $('#div-license-description').html(`
+                <div class="license-info error">
+                    <p><i class="fas fa-exclamation-triangle" style="color: var(--pf-global--danger-color--100);"></i> 라이센스 상태를 확인할 수 없습니다.</p>
+                    <p>시스템 오류가 발생했습니다.</p>
+                </div>
+            `);
+        });
+}
+// /**
+//  * Meathod Name : checkHostandStonithrecovery
+//  * Date Created : 2025.03.31
+//  * Writer  : 정민철
+//  * Description : 정전 및 전원이 나갔을 경우, PCS 및 GFS 스토리지 안정화 스크립트
+//  * Parameter : 없음
+//  * Return  : 없음
+//  * History  : 2025.02.28 최초 작성
+//  */
+// function checkHostandStonithrecovery(){
+//     var result = ['python3', pluginpath + '/python/gfs/gfs_alert_manage.py'];
+//     cockpit.spawn(result)
+//     .then(function(data){
+//         var result = JSON.parse(data);
+//         console.log(result);
+//     });
+// }
+
+// 라이센스 등록 버튼 클릭 이벤트
+$('#button-execution-modal-license-register').on('click', function(){
+    // ... 기존 코드 ...
+});
+
+// 모달이 열릴 때 라이센스 상태 확인
+$('#button-open-modal-license-register').on('click', function(){
+    $('#div-modal-license-register').show();
+    updateLicenseStatus();
+});
+
+// 파일 선택 시 버튼 활성화
+$('#input-license-file').on('change', function(){
+    $('#button-execution-modal-license-register').prop('disabled', !this.files.length);
+});
+
+// 라이센스 관련 이벤트 핸들러
+function initializeLicenseHandlers() {
+    // 라이센스 등록 모달 열기
+    $('#button-open-modal-license-register').on('click', function(){
+        $('#div-modal-license-register').show();
+        checkLicenseStatus();
+    });
+
+    // 모달 닫기
+    $('#button-close-modal-license-register, #button-cancel-modal-license-register').on('click', function(){
+        $('#div-modal-license-register').hide();
+        $('#input-license-file').val("");
+    });
+
+    // 파일 선택 시 버튼 활성화
+    $('#input-license-file').on('change', function(){
+        $('#button-execution-modal-license-register').prop('disabled', !this.files.length);
+    });
+
+    // 라이센스 등록 실행
+    $('#button-execution-modal-license-register').on('click', function(){
+        const licenseFile = $('#input-license-file')[0].files[0];
+        if (!licenseFile) {
+            alert("라이센스 파일을 선택해주세요.");
+            return;
+        }
+
+        // 로딩 스피너 표시
+        $('#div-modal-spinner-header-txt').text('라이센스 등록중입니다...');
+        $('#div-modal-spinner-body-txt').text('라이센스를 등록하는 중입니다. 잠시만 기다려주세요.');
+        $('#div-modal-spinner').show();
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const fileContent = e.target.result;
+            const base64Content = btoa(fileContent);
+
+            // 라이센스 등록 API 호출
+            cockpit.spawn([
+                'python3',
+                '/usr/share/cockpit/ablestack/python/license/register_license.py',
+                '--license-content',
+                base64Content,
+                '--original-filename',
+                licenseFile.name
+            ], { superuser: true })
+            .then(function(data) {
+                $('#div-modal-spinner').hide();
+                const result = JSON.parse(data);
+                if(result.code == "200") {
+                    $('#div-modal-license-register').hide();
+                    alert("라이센스가 성공적으로 등록되었습니다.");
+                    location.reload();
+                } else {
+                    alert("라이센스 등록 실패: " + result.val);
+                    location.reload();
+                }
+            })
+            .catch(function(error) {
+                $('#div-modal-spinner').hide();
+                $('#div-modal-license-register').hide();
+                console.error("Error:", error);
+                alert("라이센스 등록 중 오류가 발생했습니다: " + error);
+                location.reload();
+            });
+        };
+        reader.readAsBinaryString(licenseFile);
+    });
 }

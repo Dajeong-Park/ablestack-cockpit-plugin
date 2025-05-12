@@ -22,7 +22,7 @@
             "hostname3": ""
         },
         "hosts": [
-        ]
-
+        ],
+        "extenal_timeserver": ""
     }
 }

@@ -106,6 +106,7 @@ def createCcvmXml(args):
         # 템플릿 파일을 /usr/share/cockpit/ablestack/tools/vmconfig/ccvm 경로로 복사
         slot_hex_num = generateDecToHex()
         br_num = 0
+        openvswitch_service_check = os.system("systemctl is-active openvswitch > /dev/null")
 
         os.system("yes|cp -f "+pluginpath+"/tools/xml-template/ccvm-xml-template.xml "+pluginpath+"/tools/vmconfig/ccvm/ccvm-temp.xml")
 
@@ -158,6 +159,11 @@ def createCcvmXml(args):
                         mnb_txt += "      <target dev='vnet" + str(br_num) + "'/>\n"
                         mnb_txt += "      <model type='virtio'/>\n"
                         mnb_txt += "      <alias name='net" + str(br_num) + "'/>\n"
+                        # openvswitch 서비스가 활성화일 경우 해당 코드 추가
+                        if openvswitch_service_check == 0:
+                            mnb_txt += "      <virtualport type='openvswitch' />\n"
+                        else:
+                            mnb_txt += "      <filterref filter='allow-all-traffic'/>\n"
                         mnb_txt += "      <address type='pci' domain='0x0000' bus='0x00' slot='" + slot_hex_num.pop(0) + "' function='0x0'/>\n"
                         mnb_txt += "    </interface>"
 
@@ -166,6 +172,9 @@ def createCcvmXml(args):
                 elif '<!--service_network_bridge-->' in line:
                     if args.service_network_bridge is not None:
                         snb_txt = "    <interface type='bridge'>\n"
+                        # openvswitch 서비스가 활성화일 경우 해당 코드 추가
+                        if openvswitch_service_check != 0:
+                            snb_txt += "      <filterref filter='allow-all-traffic'/>\n"
                         snb_txt += "      <mac address='" + generateMacAddress() + "'/>\n"
                         snb_txt += "      <source bridge='" + args.service_network_bridge + "'/>\n"
                         snb_txt += "      <target dev='vnet" + str(br_num) + "'/>\n"

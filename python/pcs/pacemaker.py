@@ -164,6 +164,7 @@ class Pacemaker:
         self.resource_name = resource_name
 
         pcs('resource', 'cleanup', self.resource_name)
+        pcs('stonith', 'history', 'cleanup')
 
         ret = createReturn(code=200, val='cleanup')
         print(json.dumps(json.loads(ret), indent=4))

@@ -18,10 +18,10 @@ def parse_and_serialize_resources():
         }
 
         node_history_data = []
-
         node_resources = {}
         nodes_info = []
 
+        # 노드 정보 가져오기 (순서 유지)
         for node in root.findall(".//nodes/node"):
             node_attributes = {attr: node.get(attr) for attr in node.keys()}
             nodes_info.append(node_attributes)
@@ -51,22 +51,30 @@ def parse_and_serialize_resources():
                 "resource_histories": resource_histories
             })
 
+        # IP 정렬
         node_history_data = sorted(
             node_history_data,
             key=lambda x: ipaddress.IPv4Address(x["node_name"])
         )
 
-        for i,resource in enumerate(root.findall(".//resource")):
-            resource_id = resource.get("id")
+        # 노드 순차 할당을 위한 인덱스 변수
+        node_index = 0
 
+        for resource in root.findall(".//resource"):
+            resource_id = resource.get("id")
             attributes = {attr: resource.get(attr) for attr in resource.keys()}
-            if resource_id.startswith("fence-ablecube"):
-                node_name = nodes_info[i-1]["name"]
+
+            # Fence 자원 처리 (순차적으로 노드 할당)
+            if resource_id.startswith("fence-"):
+                # 순차적으로 nodes_info에서 하나씩 가져오기
+                node_name = nodes_info[node_index % len(nodes_info)]["name"]  # 노드 리스트에서 순환
+                node_index += 1  # 다음 노드를 가리키도록 증가
+
                 fence_resource = attributes.copy()
-                fence_resource["node_name"] = node_name  # Add node name from nodes_info
+                fence_resource["node_name"] = node_name  # 올바른 노드 정보 추가
                 categorized_resources["fence_resources"].append(fence_resource)
 
-            # Fetch associated nodes for each resource
+            # Glue Locking & Glue GFS 자원 처리
             for node in resource.findall(".//node"):
                 node_name = node.get("name", "unknown")
                 if node_name not in node_resources:
@@ -75,12 +83,10 @@ def parse_and_serialize_resources():
                         "glue_gfs_resources": []
                     }
 
-                # Handle other resource types
                 if resource_id in ["glue-dlm", "glue-lvmlockd"]:
                     node_resources[node_name]["glue_locking_resources"].append(attributes)
                 elif resource_id.startswith("glue-gfs"):
                     node_resources[node_name]["glue_gfs_resources"].append(attributes)
-
 
         result = {
             "nodes_info": nodes_info,

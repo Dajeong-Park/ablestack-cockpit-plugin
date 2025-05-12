@@ -21,6 +21,10 @@ firewall-cmd --permanent --zone=public --add-service=mysql 2>&1 | tee -a $LOGFIL
 firewall-cmd --reload
 firewall-cmd --list-all 2>&1 | tee -a $LOGFILE
 
+# Crushmap 설정 추가 (ceph autoscale)
+scvm=$(grep scvm-mngt /etc/hosts | awk {'print $1'})
+ssh -o StrictHostKeyChecking=no $scvm /usr/local/sbin/setCrushmap.sh
+
 # resize partition
 sgdisk -e /dev/vda
 parted --script /dev/vda resizepart 3 100%
@@ -34,10 +38,6 @@ systemctl enable --now nfs-server.service
 
 mkdir /nfs/primary
 mkdir /nfs/secondary
-
-# Crushmap 설정 추가 (ceph autoscale)
-#scvm=$(grep scvm-mngt /etc/hosts | awk {'print $1'})
-#ssh -o StrictHostKeyChecking=no $scvm /usr/local/sbin/setCrushmap.sh
 
 ################# Setting Database
 mysqladmin -uroot password $DATABASE_PASSWD

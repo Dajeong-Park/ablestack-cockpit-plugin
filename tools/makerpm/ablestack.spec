@@ -4,7 +4,7 @@
 
 Name: ablecube
 Version: %{?version}%{!?version:4.2}
-Release: %{?release}%{!?release:0.wip.el9.noarch}
+Release: %{?release}%{!?release:2.wip.el9.noarch}
 Source0: %{name}-%{version}.tar.gz
 Summary: ablestack cube package
 

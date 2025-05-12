@@ -154,11 +154,11 @@ def Detail():
         devices = DeviceLs()
 
         # 호스트 네임 추가 해주기
-        result['master']['hostname'] = socket.gethostbyaddr(json_object["mdmCluster"]["master"]["ips"][0])[0].split('-')[0]
+        result['master']['hostname'] = socket.gethostbyaddr(json_object["mdmCluster"]["master"]["ips"][0])[0].split('-')[1]
         for i in range(len(result['slaves'])):
-            result['slaves'][i]['hostname'] = socket.gethostbyaddr(json_object["mdmCluster"]["slaves"][i]["ips"][0])[0].split('-')[0]
+            result['slaves'][i]['hostname'] = socket.gethostbyaddr(json_object["mdmCluster"]["slaves"][i]["ips"][0])[0].split('-')[1]
         for j in range(len(result['tieBreakers'])):
-            result['tieBreakers'][j]['hostname'] = socket.gethostbyaddr(json_object["mdmCluster"]["tieBreakers"][j]["ips"][0])[0].split('-')[0]
+            result['tieBreakers'][j]['hostname'] = socket.gethostbyaddr(json_object["mdmCluster"]["tieBreakers"][j]["ips"][0])[0].split('-')[1]
 
         result['protection_domains'] = protection_domains
         result['devices'] = devices

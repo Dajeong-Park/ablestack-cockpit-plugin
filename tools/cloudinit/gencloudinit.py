@@ -343,7 +343,7 @@ def genUserFromFile(pubkeyfile: str, privkeyfile: str, hostsfile: str):
                     }
                 ]
         }
-    elif os_type == 'PowerFlex' or os_type == 'general-virtualization':
+    elif os_type == 'PowerFlex' or os_type == 'ablestack-vm':
                 yam = {
             'disable_root': False,
             'ssh_pwauth': True,
@@ -513,6 +513,17 @@ def scvmGen(pn_nic=None, pn_ip=None, pn_prefix=24, cn_nic=None, cn_ip=None, cn_p
                     'content': base64.encodebytes(ipcorrector.encode()),
                     'owner': 'root:root',
                     'path': '/usr/local/bin/ipcorrector',
+                    'permissions': '0777'
+                }
+            )
+        with open(f'{pluginpath}/tools/properties/cluster.json', 'rt') as cluster_json_file:
+            cluster_json = cluster_json_file.read()
+            yam2['write_files'].append(
+                {
+                    'encoding': 'base64',
+                    'content': base64.encodebytes(cluster_json.encode()),
+                    'owner': 'root:root',
+                    'path': f'{pluginpath}/tools/properties/cluster.json',
                     'permissions': '0777'
                 }
             )

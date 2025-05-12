@@ -9,6 +9,7 @@ Copyright (c) 2021 ABLECLOUD Co. Ltd
 
 import argparse
 import logging
+import subprocess
 import sys
 import os
 import json
@@ -69,7 +70,7 @@ def selectPcsExeHost(args):
         for f_key in json_data["clusterConfig"]["pcsCluster"]:
             pcs_host = json_data["clusterConfig"]["pcsCluster"][f_key]
             if pcs_host != "":
-                ret = ssh('-o', 'StrictHostKeyChecking=no', '-o', 'ConnectTimeout=1', pcs_host, "echo ok").strip()
+                ret = subprocess.run(["ssh", "-o", "StrictHostKeyChecking=no", "-o", "ConnectTimeout=1", pcs_host, "echo ok"],stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, check=False).stdout.strip()
                 if ret == 'ok':
                     return createReturn(code=200, val=pcs_host)
 

@@ -7,6 +7,7 @@ import paramiko
 import subprocess
 import os
 import json
+import concurrent.futures
 
 from ablestack import *
 
@@ -127,8 +128,16 @@ def create_clvm(disks):
             # 클러스터의 모든 노드에서 LVM 정보 갱신
             for ip in list_ips:
                 ssh_client = connect_to_host(ip)
-                run_command(f"partprobe {disk}", ssh_client, ignore_errors=True)
-                run_command(f"lvmdevices --adddev {partition}", ssh_client, ignore_errors=True)
+                multipath_check = os.popen("multipath -l -v 1").read().strip()
+                if multipath_check != "":
+                    run_command(f"partprobe {disk}", ssh_client, ignore_errors=True)
+                    run_command(f"lvmdevices --adddev {partition}", ssh_client, ignore_errors=True)
+                else:
+                    single_disk_arr = run_command("lsblk -r -n -o NAME,TYPE -d | grep -v rom | awk '{print $1}'", ssh_client).split()
+                    for single_disk in single_disk_arr:
+                        single_partition = f"{single_disk}1"
+                        run_command(f"partprobe /dev/{single_disk}", ssh_client, ignore_errors=True)
+                        run_command(f"lvmdevices --adddev /dev/{single_partition}", ssh_client, ignore_errors=True)
                 ssh_client.close()
 
             next_num += 1  # 다음 볼륨 그룹 번호 증가
@@ -241,12 +250,22 @@ def delete_clvm(vg_names,pv_names):
         for vg_name, pv_name in zip(vg_names, pv_names):
             run_command(f"vgremove {vg_name}")
             run_command(f"pvremove {pv_name}")
-            mpath_name = re.sub(r'\d+$', '', pv_name)
-            run_command(f'echo -e "d\nw" | fdisk {mpath_name}')
+            multipath_check = os.popen("multipath -l -v 1").read().strip()
+            if multipath_check != "" :
+                mpath_name = re.sub(r'\d+$', '', pv_name)
+                run_command(f'echo -e "d\nw" | fdisk {mpath_name}')
 
-            for host in json_data["clusterConfig"]["hosts"]:
-                ssh_client = connect_to_host(host["ablecube"])
-                run_command(f"partprobe {mpath_name}",ssh_client)
+                for host in json_data["clusterConfig"]["hosts"]:
+                    ssh_client = connect_to_host(host["ablecube"])
+                    run_command(f"partprobe {mpath_name}",ssh_client)
+            else:
+                disk_name = re.sub(r'\d+$', '', pv_name)
+                run_command(f"parted -s {disk_name} rm 1")
+                for host in json_data["clusterConfig"]["hosts"]:
+                    ssh_client = connect_to_host(host["ablecube"])
+                    single_disk_arr = run_command("lsblk -r -n -o NAME,TYPE -d | grep -v rom | awk '{print $1}'", ssh_client).split()
+                    for single_disk in single_disk_arr:
+                        run_command(f"partprobe /dev/{single_disk}",ssh_client)
 
 
         ret = createReturn(code=200, val="Success to clvm delete")
@@ -274,27 +293,82 @@ def delete_gfs(disks, gfs_name, lv_name, vg_name):
         run_command(f"lvremove --lockopt skiplv /dev/{vg_name}/{lv_name} -y")
         run_command(f"vgremove {vg_name}")
         for disk in disks:
-            partition = f"{disk}1"
-            run_command(f"pvremove {partition}")
-            run_command(f"echo -e 'd\nw\n' | fdisk {disk} >/dev/null 2>&1")
+            multipath_check = os.popen("multipath -l -v 1").read().strip()
+            if multipath_check != "" :
+                partition = f"{disk}1"
+                run_command(f"pvremove {partition}")
+                run_command(f"echo -e 'd\nw\n' | fdisk {disk} >/dev/null 2>&1")
 
-            for host in json_data["clusterConfig"]["hosts"]:
-                ssh_client = connect_to_host(host["ablecube"])
-                escaped_disk = disk.replace('/', '\\/')
-                escaped_partition = partition.replace('/', '\\/')
-                sed_cmd = f"sed -i '/partprobe {escaped_disk}/{{N; /lvmdevices --adddev {escaped_partition}/d;}}' /etc/rc.local /etc/rc.d/rc.local"
+                for host in json_data["clusterConfig"]["hosts"]:
+                    ssh_client = connect_to_host(host["ablecube"])
+                    escaped_disk = disk.replace('/', '\\/')
+                    escaped_partition = partition.replace('/', '\\/')
+                    sed_cmd = f"sed -i '/partprobe {escaped_disk}/{{N; /lvmdevices --adddev -y {escaped_partition}/d;}}' /etc/rc.local /etc/rc.d/rc.local"
 
-                # lvm.conf 초기화
-                run_command(f"partprobe {disk}",ssh_client,ignore_errors=True)
-                run_command(sed_cmd, ssh_client, ignore_errors=True)
+                    # lvm.conf 초기화
+                    run_command(f"partprobe {disk}",ssh_client,ignore_errors=True)
+                    run_command(sed_cmd, ssh_client, ignore_errors=True)
 
-                ssh_client.close()
+                    ssh_client.close()
+            else:
+                partition = f"{disk}1"
+                run_command(f"pvremove {partition}")
+                run_command(f"parted -s {disk} rm 1")
+
+                for host in json_data["clusterConfig"]["hosts"]:
+                    ssh_client = connect_to_host(host["ablecube"])
+                    single_disk_arr = run_command("lsblk -r -n -o NAME,TYPE -d | grep -v rom | awk '{print $1}'", ssh_client).split()
+                    for single_disk in single_disk_arr:
+                        single_partition = f"/dev/{single_disk}1"
+                        escaped_disk = single_disk.replace('/', '\\/')
+                        escaped_partition = single_partition.replace('/', '\\/')
+                        sed_cmd = f"sed -i '/partprobe /dev/{escaped_disk}/{{N; /lvmdevices --adddev -y /dev/{escaped_partition}/d;}}' /etc/rc.local /etc/rc.d/rc.local"
+
+                        # lvm.conf 초기화
+                        run_command(f"partprobe /dev/{single_disk}",ssh_client,ignore_errors=True)
+                        run_command(sed_cmd, ssh_client, ignore_errors=True)
+
+                    ssh_client.close()
 
         ret = createReturn(code=200, val="Success to gfs delete")
         return print(json.dumps(json.loads(ret), indent=4))
     except Exception as e:
         ret = createReturn(code=500, val=f"Error: {str(e)}")
         return print(json.dumps(json.loads(ret), indent=4))
+
+def list_hba_wwn():
+    try:
+        hosts = json_data["clusterConfig"]["hosts"]
+
+        def get_hba_wwn(host):
+            """개별 호스트에서 HBA WWN 정보를 가져오는 내부 함수"""
+            try:
+                ip = host["ablecube"]
+                hostname = host["hostname"]
+                ssh_client = connect_to_host(ip)
+
+                hba_check = run_command("lspci | grep -i fibre", ssh_client)
+                wwn_list = []
+                if hba_check:
+                    wwn_list = run_command("cat /sys/class/fc_host/host*/port_name", ssh_client).split()
+
+                ssh_client.close()
+                return {"hostname": hostname, "wwn": wwn_list}
+
+            except Exception as e:
+                return {"hostname": host["hostname"], "wwn": [], "error": str(e)}
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+            results = list(executor.map(get_hba_wwn, hosts))
+
+        ret = createReturn(code=200, val=results)
+        print(json.dumps(json.loads(ret), indent=4))
+
+    except Exception as e:
+        ret = createReturn(code=500, val=f"Error: {str(e)}")
+        print(json.dumps(json.loads(ret), indent=4))
+
+
 def main():
     parser = argparse.ArgumentParser(description="Cluster configuration script")
 
@@ -303,6 +377,7 @@ def main():
     parser.add_argument('--list-gfs', action='store_true', help='List GFS Volume Groups.')
     parser.add_argument('--delete-clvm', action='store_true', help='Delete CLVM Volume Group.')
     parser.add_argument('--delete-gfs', action='store_true', help='Delete GFS Disk.')
+    parser.add_argument('--list-hba-wwn', action='store_true', help='List HBA WWN.')
     parser.add_argument('--disks', help='Comma separated list of disks to use.')
     parser.add_argument('--gfs-name', help='GFS Name')
     parser.add_argument('--lv-names', help='Serveral LV Name.')
@@ -344,6 +419,9 @@ def main():
         else:
             disks = args.disks.split(',')
             delete_gfs(disks, args.gfs_name, args.lv_names, args.vg_names)
+
+    if args.list_hba_wwn:
+        list_hba_wwn()
 
 if __name__ == "__main__":
     main()

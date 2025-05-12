@@ -13,11 +13,12 @@ import argparse
 from ablestack import *
 
 file_path = '/usr/share/cockpit/ablestack/tools/properties/ablestack.json'
+cluster_json_file_path = pluginpath + "/tools/properties/cluster.json"
 def parseArgs():
 
     parser = argparse.ArgumentParser(description='Cloud-Init status check',
                                      epilog='copyrightⓒ 2021 All rights reserved by ABLECLOUD™')
-    parser.add_argument('action', choices=['status','create','update','delete','allUpdate'], help='choose one of the actions')
+    parser.add_argument('action', choices=['status','create','update','delete','allUpdate','reset'], help='choose one of the actions')
     parser.add_argument('--depth1', metavar='name', type=str, help='ablestack.json 1 depth key')
     parser.add_argument('--depth2', metavar='name', type=str, help='ablestack.json 2 depth key')
     parser.add_argument('--value', metavar='name', type=str, help='ablestack.json value')
@@ -34,6 +35,18 @@ def openAblestackJson():
 
     return ret
 
+def openClusterJson():
+    try:
+        with open(cluster_json_file_path, 'r') as json_file:
+            ret = json.load(json_file)
+    except Exception as e:
+        ret = createReturn(code=500, val='cluster.json read error')
+        print ('EXCEPTION : ',e)
+
+    return ret
+
+cluster_json_data = openClusterJson()
+os_type = cluster_json_data["clusterConfig"]["type"]
 def jsonStatus():
     try:
         res = {}
@@ -93,13 +106,33 @@ def jsonUpdate():
 def jsonAllUpdate():
     try:
         json_data = openAblestackJson()
-        json_data["bootstrap"]["scvm"] = "true"
+        if os_type != "ablestack-vm":
+            json_data["bootstrap"]["scvm"] = "true"
+
         json_data["bootstrap"]["ccvm"] = "true"
         json_data["monitoring"]["wall"] = "true"
 
         with open(file_path, 'w') as outfile:
             json.dump(json_data, outfile, indent=4)
             ret = createReturn(code=200, val="ablestack.json all option change true")
+
+    except Exception as e:
+        ret = createReturn(code=500, val='ablestack.json all option change ERROR')
+        print ('EXCEPTION : ',e)
+
+    return ret
+
+def jsonAllReset():
+    try:
+        json_data = openAblestackJson()
+
+        json_data["bootstrap"]["scvm"] = "false"
+        json_data["bootstrap"]["ccvm"] = "false"
+        json_data["monitoring"]["wall"] = "false"
+
+        with open(file_path, 'w') as outfile:
+            json.dump(json_data, outfile, indent=4)
+            ret = createReturn(code=200, val="ablestack.json all option change false")
 
     except Exception as e:
         ret = createReturn(code=500, val='ablestack.json all option change ERROR')
@@ -118,4 +151,7 @@ if __name__ == '__main__':
         print(ret)
     elif (args.action) == 'allUpdate':
         ret = jsonAllUpdate()
+        print(ret)
+    elif (args.acrtion) == 'reset':
+        ret = jsonAllReset()
         print(ret)

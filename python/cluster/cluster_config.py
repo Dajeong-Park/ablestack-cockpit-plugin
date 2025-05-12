@@ -13,6 +13,7 @@ import sys
 import os
 import json
 import socket
+import subprocess
 
 from ablestack import *
 from sh import python3
@@ -34,7 +35,7 @@ def createArgumentParser():
                                         usage='%(prog)s arguments')
 
     # 인자 추가: https://docs.python.org/ko/3/library/argparse.html#the-add-argument-method
-    parser.add_argument('action', choices=['insert','insertScvmHost','insertAllHost','remove','check'], help='choose one of the actions')
+    parser.add_argument('action', choices=['insert','insertScvmHost','insertAllHost','remove','check','reset','reset-sync'], help='choose one of the actions')
     parser.add_argument('-t', '--type', metavar='[OS Type]', type=str, help='input Value to OS Type')
     parser.add_argument('-cmi', '--ccvm-mngt-ip', metavar='[cloudcenter vm IP information]', type=str, help='input Value to coludcenter vm IP information')
     parser.add_argument('-mnc', '--mngt-nic-cidr', metavar='[management Nic cidr]', type=str, help='input Value to management Nic cidr')
@@ -45,6 +46,8 @@ def createArgumentParser():
     parser.add_argument('-co', '--copy-option', choices=['hostOnly','withScvm','withCcvm'], metavar='[hosts file copy option]', default="hostOnly", type=str, help='choose one of the actions')
     parser.add_argument('-eh', '--exclude-hostname', metavar='[Hostnames to exclude from copying the hosts file to scvm and checking the network]', type=str, help='input Value to exclude hostname')
     parser.add_argument('-rh', '--remove-hostname', metavar='[Hostnames to remove configuration in cluster]', type=str, help='input Value to remove hostname')
+    parser.add_argument('-ets', '--extenal-timeserver', metavar='[Extenal Timeserver]', type=str, help='input Value to Extenal Timeserver')
+    parser.add_argument('-ti', '--target-ip', metavar='[Remove Target Host IP Address]', type=str, help="input Value to remove target host ip address")
 
     # output 민감도 추가(v갯수에 따라 output및 log가 많아짐):
     parser.add_argument('-v', '--verbose', action='count', default=0, help='increase output verbosity')
@@ -73,14 +76,26 @@ os_type = json_data["clusterConfig"]["type"]
 # 파라미터로 받은 json 값으로 cluster_config.py 무조건 바꾸는 함수 (동일한 값이 있으면 변경, 없으면 추가)
 def insert(args):
     try:
+        # Network Filter 적용
+        subprocess.run(["virsh", "nwfilter-define", "--file", "/usr/local/sbin/nwfilter-allow-all.xml"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.run(["modprobe", "br_netfilter"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        with open("/etc/sysctl.conf", "a") as sysctl_file:
+            sysctl_file.write("\nnet.bridge.bridge-nf-call-arptables=1")
+            sysctl_file.write("\nnet.bridge.bridge-nf-call-iptables=1")
+            sysctl_file.write("\nnet.bridge.bridge-nf-call-ip6tables=1")
+
+        subprocess.run(["sysctl", "-p"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
     # 수정할 cluster.json 파일 읽어오
         # 기존 file json 데이터를 param 데이터로 교체
         if args.type is not None :
             json_data["clusterConfig"]["type"] = args.type
         if args.ccvm_mngt_ip is not None:
             json_data["clusterConfig"]["ccvm"]["ip"] = args.ccvm_mngt_ip
+        if args.extenal_timeserver is not None:
+            json_data["clusterConfig"]["extenal_timeserver"] = args.extenal_timeserver
 
-        if args.type == "general-virtualization":
+        if args.type == "ablestack-vm":
             if args.pcs_cluster_list is not None:
                     for i in range(len(args.pcs_cluster_list)):
                         if args.pcs_cluster_list[i] is not None:
@@ -173,6 +188,7 @@ def insert(args):
 
         if result["code"] != 200:
             return createReturn(code=500, val=return_val + " : " + p_val3["ablecube"])
+
         else:
             return createReturn(code=200, val="Cluster Config insert Success")
 
@@ -248,7 +264,7 @@ def insertAllHost(args):
             ping_check_list = []
             for p_val1 in param_json:
                 ping_check_list.append(p_val1["ablecube"])
-                if args.type != "general-virtualization":
+                if args.type != "ablestack-vm":
                     if args.exclude_hostname != p_val1["hostname"]:
                         ping_check_list.append(p_val1["scvmMngt"])
 
@@ -263,9 +279,10 @@ def insertAllHost(args):
                     ret = ssh('-o', 'StrictHostKeyChecking=no', '-o', 'ConnectTimeout=5', p_val2["ablecube"], "echo ok").strip()
                     if ret != "ok":
                         return createReturn(code=500, val=return_val + " : " + p_val2["ablecube"])
-
+                    os.system("touch /var/lib/libvirt/images/ccvm-cloudinit.iso")
+                    os.system("chmod 777 /var/lib/libvirt/images/ccvm-cloudinit.iso")
                     # 호스트 추가시 클러스터 구성단계에서는 scvm이 배포되기 전이므로 해당 scvm에 echo 테스트 명령을 수행할 수 없음
-                    if args.type != "general-virtualization":
+                    if args.type != "ablestack-vm":
                         if args.exclude_hostname != p_val2["hostname"]:
                             ret = ssh('-o', 'StrictHostKeyChecking=no', '-o', 'ConnectTimeout=5', p_val2["scvmMngt"], "echo ok").strip()
                             if ret != "ok":
@@ -290,7 +307,10 @@ def insertAllHost(args):
                     if args.mngt_nic_dns is not None:
                         cmd_str += " -mnd "+args.mngt_nic_dns
 
-                    if args.type != "general-virtualization":
+                    if args.extenal_timeserver is not None:
+                        cmd_str += " -ets "+args.extenal_timeserver
+
+                    if args.type != "ablestack-vm":
                         if args.exclude_hostname != p_val3["hostname"]:
                             cmd_str += " -co withScvm"
                         else:
@@ -371,9 +391,35 @@ def reset_cluster_config():
     clusterConfig["mngtNic"]["cidr"] = ""
     clusterConfig["mngtNic"]["gw"] = ""
     clusterConfig["mngtNic"]["dns"] = ""
+    clusterConfig["extenal_timeserver"] = ""
     for i in range(len(clusterConfig["pcsCluster"])):
         clusterConfig["pcsCluster"]["hostname"+str(i+1)] = ""
     clusterConfig["hosts"] = []
+
+    with open(json_file_path, "w", encoding="utf-8") as file:
+        json.dump(json_data, file, indent=4)
+
+def remove_ip_from_cluster_config_and_hosts_file(args):
+    try:
+        if args.target_ip is not None:
+            # 1. pcsCluster에서 해당 IP 값만 삭제 (키 유지)
+            for i in range(len(json_data["clusterConfig"]["pcsCluster"])):
+                if json_data["clusterConfig"]["pcsCluster"]["hostname"+str(i+1)] == args.target_ip:
+                    json_data["clusterConfig"]["pcsCluster"]["hostname"+str(i+1)] = ""
+            # 2. hosts 배열에서 해당 IP가 포함된 객체 제거
+            json_data["clusterConfig"]["hosts"] = [
+                host for host in json_data["clusterConfig"]["hosts"] if host["ablecube"] != args.target_ip
+            ]
+            with open(json_file_path, "w", encoding="utf-8") as file:
+                json.dump(json_data, file, indent=4)
+
+            os.system(f"sed -i '/^{args.target_ip}/d' /etc/hosts")
+
+            return createReturn(code=200, val="Cluster.json Remove Host Info Success")
+        else:
+            return createReturn(code=500, val="Target IP required")
+    except:
+        return createReturn(code=500, val="Cluster.json Remove Host Info Failed")
 
 def PingCheck(args):
     return_val = "The ping test failed. Check ablecube hosts network IPs."
@@ -448,7 +494,7 @@ if __name__ == '__main__':
 
     # 실제 로직 부분 호출 및 결과 출력
     if args.action == 'insert':
-        if os_type == "general-virtualization":
+        if os_type == "ablestack-vm":
             reset_cluster_config()
         ret = insert(args)
         print(ret)
@@ -463,4 +509,10 @@ if __name__ == '__main__':
         print(ret)
     elif args.action == 'check':
         ret = PingCheck(args)
+        print(ret)
+    elif args.action == 'reset':
+        ret = reset_cluster_config()
+        print(ret)
+    elif args.action == "reset-sync":
+        ret = remove_ip_from_cluster_config_and_hosts_file(args)
         print(ret)

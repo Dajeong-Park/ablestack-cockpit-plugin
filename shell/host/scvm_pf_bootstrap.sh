@@ -71,9 +71,9 @@ sleep 5
 
 for scvm in $scvms_name
 do
-scvm_name=$(grep $scvm /etc/hosts | awk '{split($2,a,"-"); print a[1]}')
-scvms_cn=$(grep $scvm_name /etc/hosts| grep -v mngt | grep cn | awk {'print $1'})
-scvms_pn=$(grep $scvm_name /etc/hosts| grep -v mngt | grep  -v cn | awk {'print $1'})
+scvm_name=$(echo "$scvm" | cut -d '-' -f2)
+scvms_pn=$(grep $scvm_name /etc/hosts| grep pn | awk {'print $1'})
+scvms_cn=$(grep "$scvm_name" /etc/hosts| grep cn | awk {'print $1'})
 
   if [ $scvm == "pn-scvm1" ]
   then
@@ -104,9 +104,9 @@ done
 ################ sds 생성 (1번 scvm에서 실행) ##################
 for scvm in $scvms_name
 do
-scvm_name=$(grep $scvm /etc/hosts | awk '{split($2,a,"-"); print a[1]}')
-scvms_cn=$(grep $scvm_name /etc/hosts| grep -v mngt | grep cn | awk {'print $1'})
-scvms_pn=$(grep $scvm_name /etc/hosts| grep -v mngt | grep  -v cn | awk {'print $1'})
+scvm_name=$(echo "$scvm" | cut -d '-' -f2)
+scvms_pn=$(grep $scvm_name /etc/hosts| grep pn | awk {'print $1'})
+scvms_cn=$(grep "$scvm_name" /etc/hosts| grep cn | awk {'print $1'})
 
   if [ $scvm == "pn-scvm1" ]
   then

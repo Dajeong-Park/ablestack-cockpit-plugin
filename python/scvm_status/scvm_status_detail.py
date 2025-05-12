@@ -208,7 +208,7 @@ def statusDeteil():
         rc = call(["cat /etc/hosts | grep scvm$"], universal_newlines=True, shell=True, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
         if rc == 0:
             if os_type == "PowerFlex":
-                output = check_output(["awk '$NF == \"scvm\" {print $1}' /etc/hosts"], universal_newlines=True, shell=True, env=env)
+                output = check_output(["awk '$NF == \"pn-scvm\" {print $1}' /etc/hosts"], universal_newlines=True, shell=True, env=env)
             else:
                 output = check_output(["awk '$NF == \"scvm\" {print $1}' /etc/hosts"], universal_newlines=True, shell=True, env=env)
 

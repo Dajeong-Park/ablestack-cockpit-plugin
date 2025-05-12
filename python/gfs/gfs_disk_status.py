@@ -102,22 +102,41 @@ def get_gfs2_mounts():
 def filter_gfs2_mounted_devices(blockdevices, gfs2_mounts):
     """
     GFS2로 마운트된 디스크만 필터링합니다.
-    - LVM 경로, 멀티패스 경로, 마운트 경로만 반환합니다.
+    - LVM 경로, 외부 스토리지 경로, 마운트 경로만 반환합니다.
     """
     filtered_devices = []
 
-    for device in blockdevices:
-        if 'children' in device:
-            for child in device['children']:
-                if 'children' in child:
-                    for sub_child in child['children']:
-                        if 'children' in sub_child:
-                            for lvm in sub_child['children']:
+    multipath_check = os.popen("multipath -l -v 1").read().strip()
+
+    if multipath_check != "":
+        for device in blockdevices:
+            if 'children' in device:
+                for child in device['children']:
+                    if 'children' in child:
+                        for sub_child in child['children']:
+                            if 'children' in sub_child:
+                                for lvm in sub_child['children']:
+                                    for gfs2_dev, gfs2_mount in gfs2_mounts:
+                                        if lvm['path'] == gfs2_dev:
+                                            filtered_devices.append({
+                                                "lvm": lvm['path'],
+                                                "multipath": sub_child['path'],
+                                                "device": device['path'],
+                                                "mountpoint": gfs2_mount,
+                                                "size": lvm['size']
+                                            })
+    else:
+        for device in blockdevices:
+            if 'children' in device:
+                for child in device['children']:
+                    if 'children' in child:
+                        for lvm in child['children']:
+                            if "vg_glue" in lvm["name"]:
                                 for gfs2_dev, gfs2_mount in gfs2_mounts:
                                     if lvm['path'] == gfs2_dev:
                                         filtered_devices.append({
                                             "lvm": lvm['path'],
-                                            "multipath": sub_child['path'],
+                                            "multipath": device['path'],
                                             "device": device['path'],
                                             "mountpoint": gfs2_mount,
                                             "size": lvm['size']

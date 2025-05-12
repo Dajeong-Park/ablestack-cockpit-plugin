@@ -73,9 +73,6 @@ def setupPcsCluster(args):
         check_err = os.system("ssh root@"+host+" \"systemctl restart crond.service\"")
         if check_err != 0 :
             return createReturn(code=500, val=host+" : systemctl restart crond.service failed")
-
-    #crushmap 및 rbd size 설정
-    os.system("/usr/local/sbin/setCrushmap.sh")
         
     #=========== pcs cluster 구성 ===========
     # ceph 이미지 등록
