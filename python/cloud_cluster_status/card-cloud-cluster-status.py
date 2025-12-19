@@ -6,6 +6,7 @@ Copyright (c) 2021 ABLECLOUD Co. Ltd
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import os
 import sys
 import argparse
 import json
@@ -22,7 +23,8 @@ def parseArgs():
     parser = argparse.ArgumentParser(description='Card Cloud Cluster Status',
                                      epilog='copyrightⓒ 2021 All rights reserved by ABLECLOUD™')
 
-    parser.add_argument('action', choices=['pcsDetail','pcsStart','pcsStop','pcsCleanup','pcsMigration'])
+    parser.add_argument('action', choices=['pcsDetail','pcsStart','pcsStop','pcsCleanup','pcsMigration','pcsDestroy'])
+    parser.add_argument('--purge', type=str,  help='Purge Cloud Center VM')
     parser.add_argument('--target', metavar='name', type=str, help='Target hostname to migrate Cloud Center VM')
 
     return parser.parse_args()
@@ -93,6 +95,17 @@ def pcsMigration():
 
     return ret
 
+def pcsDestroy(purge):
+    try:
+        ret = sh.python3(pluginpath + "/python/pcs/main.py","remove", "--resource", "cloudcenter_res")
+        if purge == "true":
+            os.system("rm -rf /mnt/glue-gfs/ccvm*")
+
+    except Exception as e:
+        ret = createReturn(code=500, val='ERROR')
+        print ('EXCEPTION : ',e)
+
+    return ret
 
 
 if __name__ == '__main__':
@@ -114,4 +127,7 @@ if __name__ == '__main__':
         print(ret)
     elif args.action == 'pcsMigration':
         ret = pcsMigration()
+        print(ret)
+    elif args.action == 'pcsDestroy':
+        ret = pcsDestroy(args.purge)
         print(ret)

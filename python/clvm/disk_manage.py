@@ -9,6 +9,7 @@ import os
 import json
 import concurrent.futures
 
+from sh import python3
 from ablestack import *
 
 json_file_path = pluginpath + "/tools/properties/cluster.json"
@@ -104,9 +105,11 @@ def create_clvm(disks):
         for vg in output["report"][0]["vg"]:
             vgs_name = vg["vg_name"]
             if "vg_clvm" in vgs_name:
-                num = int(vgs_name.replace("vg_clvm", ""))
-                if num > max_num:
-                    max_num = num
+                suffix = vgs_name.replace("vg_clvm", "")
+                if suffix.isdigit():
+                    num = int(suffix)
+                    if num > max_num:
+                        max_num = num
 
         # 새로운 vg_clvm 번호는 기존 최대값 + 1부터 시작
         next_num = max_num + 1
@@ -117,13 +120,14 @@ def create_clvm(disks):
             name = disk.split('/')[-1]
 
             # 볼륨 그룹 이름 생성
-            vg_name = f"vg_clvm{next_num}"
-
-            # 디스크에 파티션 생성 및 LVM 설정
-            run_command(f"parted -s {disk} mklabel gpt mkpart {name} 0% 100% set 1 lvm on")
-            partition = f"{disk}1"  # 파티션 이름
-            run_command(f"pvcreate -y {partition}")
-            run_command(f"vgcreate {vg_name} {partition}")
+            vg_name = f"vg_clvm{next_num:02d}"  # 두 자리 형식으로 포맷
+            multipath_check = os.popen("multipath -l -v 1").read().strip()
+            if multipath_check != "":
+                # 디스크에 파티션 생성 및 LVM 설정
+                run_command(f"parted -s {disk} mklabel gpt mkpart {name} 0% 100% set 1 lvm on")
+                partition = disk.replace("dm-uuid-mpath-","dm-uuid-part1-mpath-")
+                run_command(f"pvcreate -y {partition}")
+                run_command(f"vgcreate {vg_name} {partition}")
 
             # 클러스터의 모든 노드에서 LVM 정보 갱신
             for ip in list_ips:
@@ -194,6 +198,28 @@ def list_clvm():
             vg_name = pv.get("vg_name", "")
             if "vg_clvm" in vg_name:
                 pv_name = pv.get("pv_name", "")
+                real_path = os.path.realpath(pv_name)
+                dm_name = os.path.basename(real_path)
+                by_id_path = '/dev/disk/by-id'
+
+                if mpath_status == "active":
+                    for entry in os.listdir(by_id_path):
+                        if entry.startswith("dm-uuid-part1-mpath"):
+                            full_path = os.path.join(by_id_path, entry)
+                            if os.path.islink(full_path):
+                                resolved = os.path.realpath(full_path)
+                                if os.path.basename(resolved) == dm_name:
+                                    disk_id = entry
+                                    break  # 하나만 필요하므로 종료
+                else:
+                    for entry in os.listdir(by_id_path):
+                        full_path = os.path.join(by_id_path, entry)
+                        if os.path.islink(full_path):
+                            resolved = os.path.realpath(full_path)
+                            if os.path.basename(resolved) == dm_name:
+                                disk_id = entry
+                                break  # 하나만 필요하므로 종료
+
                 pv_size = parse_size(pv.get("pv_size", "0"))
                 disk_name = os.path.basename(pv_name.split("/")[-1].split("1")[0])
                 wwn = lsblk_map.get(disk_name, "N/A")
@@ -203,6 +229,7 @@ def list_clvm():
                     "pv_name": pv_name,
                     "pv_size": pv_size,
                     "wwn": wwn,
+                    "disk_id": "/dev/disk/by-id/" + disk_id
                 })
         clvm_pvs.sort(key=lambda x: int(x["vg_name"].replace("vg_clvm", "")))
         # 결과 반환
@@ -245,7 +272,7 @@ def list_gfs():
         ret = createReturn(code=500, val=f"Error: {str(e)}")
         return print(json.dumps(json.loads(ret), indent=4))
 
-def delete_clvm(vg_names,pv_names):
+def delete_clvm(vg_names,pv_names,disks):
     try:
         for vg_name, pv_name in zip(vg_names, pv_names):
             run_command(f"vgremove {vg_name}")
@@ -253,11 +280,13 @@ def delete_clvm(vg_names,pv_names):
             multipath_check = os.popen("multipath -l -v 1").read().strip()
             if multipath_check != "" :
                 mpath_name = re.sub(r'\d+$', '', pv_name)
-                run_command(f'echo -e "d\nw" | fdisk {mpath_name}')
 
-                for host in json_data["clusterConfig"]["hosts"]:
-                    ssh_client = connect_to_host(host["ablecube"])
-                    run_command(f"partprobe {mpath_name}",ssh_client)
+                run_command(f'echo -e "d\nw" | fdisk {mpath_name}')
+                for disk_id in disks:
+                    disk_id = disk_id.replace("dm-uuid-part1-mpath-","dm-uuid-mpath-")
+                    for host in json_data["clusterConfig"]["hosts"]:
+                        ssh_client = connect_to_host(host["ablecube"])
+                        run_command(f"partprobe {disk_id}",ssh_client)
             else:
                 disk_name = re.sub(r'\d+$', '', pv_name)
                 run_command(f"parted -s {disk_name} rm 1")
@@ -292,26 +321,25 @@ def delete_gfs(disks, gfs_name, lv_name, vg_name):
         run_command(f"vgchange -aey {vg_name}")
         run_command(f"lvremove --lockopt skiplv /dev/{vg_name}/{lv_name} -y")
         run_command(f"vgremove {vg_name}")
-        for disk in disks:
+        for partition in disks:
             multipath_check = os.popen("multipath -l -v 1").read().strip()
             if multipath_check != "" :
-                partition = f"{disk}1"
+                disk = partition.replace("dm-uuid-part1-mpath-","dm-uuid-mpath-")
                 run_command(f"pvremove {partition}")
                 run_command(f"echo -e 'd\nw\n' | fdisk {disk} >/dev/null 2>&1")
 
                 for host in json_data["clusterConfig"]["hosts"]:
                     ssh_client = connect_to_host(host["ablecube"])
-                    escaped_disk = disk.replace('/', '\\/')
-                    escaped_partition = partition.replace('/', '\\/')
-                    sed_cmd = f"sed -i '/partprobe {escaped_disk}/{{N; /lvmdevices --adddev -y {escaped_partition}/d;}}' /etc/rc.local /etc/rc.d/rc.local"
+                    # escaped_disk = disk.replace('/', '\\/')
+                    # escaped_partition = partition.replace('/', '\\/')
+                    # sed_cmd = f"sed -i '/partprobe {escaped_disk}/{{N; /lvmdevices --adddev -y {escaped_partition}/d;}}' /etc/rc.local /etc/rc.d/rc.local"
 
                     # lvm.conf 초기화
                     run_command(f"partprobe {disk}",ssh_client,ignore_errors=True)
-                    run_command(sed_cmd, ssh_client, ignore_errors=True)
+                    # run_command(sed_cmd, ssh_client, ignore_errors=True)
 
                     ssh_client.close()
             else:
-                partition = f"{disk}1"
                 run_command(f"pvremove {partition}")
                 run_command(f"parted -s {disk} rm 1")
 
@@ -319,14 +347,14 @@ def delete_gfs(disks, gfs_name, lv_name, vg_name):
                     ssh_client = connect_to_host(host["ablecube"])
                     single_disk_arr = run_command("lsblk -r -n -o NAME,TYPE -d | grep -v rom | awk '{print $1}'", ssh_client).split()
                     for single_disk in single_disk_arr:
-                        single_partition = f"/dev/{single_disk}1"
-                        escaped_disk = single_disk.replace('/', '\\/')
-                        escaped_partition = single_partition.replace('/', '\\/')
-                        sed_cmd = f"sed -i '/partprobe /dev/{escaped_disk}/{{N; /lvmdevices --adddev -y /dev/{escaped_partition}/d;}}' /etc/rc.local /etc/rc.d/rc.local"
+                        # single_partition = f"/dev/{single_disk}1"
+                        # escaped_disk = single_disk.replace('/', '\\/')
+                        # escaped_partition = single_partition.replace('/', '\\/')
+                        # sed_cmd = f"sed -i '/partprobe /dev/{escaped_disk}/{{N; /lvmdevices --adddev -y /dev/{escaped_partition}/d;}}' /etc/rc.local /etc/rc.d/rc.local"
 
                         # lvm.conf 초기화
                         run_command(f"partprobe /dev/{single_disk}",ssh_client,ignore_errors=True)
-                        run_command(sed_cmd, ssh_client, ignore_errors=True)
+                        # run_command(sed_cmd, ssh_client, ignore_errors=True)
 
                     ssh_client.close()
 
@@ -368,7 +396,156 @@ def list_hba_wwn():
         ret = createReturn(code=500, val=f"Error: {str(e)}")
         print(json.dumps(json.loads(ret), indent=4))
 
+def rescan_and_extend_gfs_disk(action, vg_name, lv_name, mount_point, mpath_disks, gfs_name, non_stop_check):
+    try:
+        if action == "rescan":
+            for i in range(len(json_data["clusterConfig"]["hosts"])):
+                host = json_data["clusterConfig"]["hosts"][i]
+                ip = host["ablecube"]
+                ssh_client = connect_to_host(ip)
+                disk_list = run_command(f"python3 {pluginpath}/python/disk/disk_action.py mpath-list", ssh_client)
+                disk_list = json.loads(disk_list)
+                gfs_disks = []
+                mpath_name = []
+                mpath_path = []
 
+                for bd in disk_list['val']['blockdevices']:
+                    if 'children' in bd and bd['children']:
+                        first_level = bd['children'][0]
+                        if 'children' in first_level and first_level['children']:
+                            second_level = first_level['children'][0]
+                            if 'children' in second_level and second_level['children']:
+                                third_level = second_level['children'][0]
+                                if third_level.get('name') == vg_name+"-"+lv_name:
+                                    if bd['name'] not in gfs_disks:
+                                        gfs_disks.append(bd['name'])
+
+                                    if first_level['name'] not in mpath_name:
+                                        mpath_name.append(first_level['name'])
+
+                                    if first_level['path'] not in mpath_path:
+                                        mpath_path.append(first_level['path'])
+                for disk in gfs_disks:
+                    run_command(f"echo 1 > /sys/block/{disk}/device/rescan", ssh_client)
+                for mpath in mpath_name:
+                    run_command(f'multipathd -k"resize map {mpath}"', ssh_client)
+                ssh_client.close()
+
+            ret = createReturn(code=200, val="Success to scan GFS Disk")
+            print(json.dumps(json.loads(ret), indent=4))
+
+        elif action == "extend":
+            if non_stop_check == "true":
+                run_command("pcs property set maintenance-mode=true")
+
+            disk_list = run_command(f"python3 {pluginpath}/python/disk/disk_action.py mpath-list")
+            disk_list = json.loads(disk_list)
+            gfs_disks = []
+            mpath_name = []
+            mpath_path = []
+            mpath_path_partition = []
+            lv_path = []
+            for bd in disk_list['val']['blockdevices']:
+                if 'children' in bd and bd['children']:
+                    first_level = bd['children'][0]
+                    if 'children' in first_level and first_level['children']:
+                        second_level = first_level['children'][0]
+                        if 'children' in second_level and second_level['children']:
+                            third_level = second_level['children'][0]
+                            if third_level.get('name') == vg_name+"-"+lv_name:
+                                if bd['name'] not in gfs_disks:
+                                    gfs_disks.append(bd['name'])
+
+
+                                if first_level['name'] not in mpath_name:
+                                    mpath_name.append(first_level['name'])
+
+                                if first_level['path'] not in mpath_path:
+                                    mpath_path.append(first_level['path'])
+
+                                partition_path = first_level['path'] + "1"
+                                if partition_path not in mpath_path_partition:
+                                    mpath_path_partition.append(partition_path)
+
+                                if third_level['path'] not in lv_path:
+                                    lv_path.append(third_level['path'])
+
+            for path in mpath_path:
+                run_command(f"parted -s {path} resizepart 1 100% -f")
+                for i in range(len(json_data["clusterConfig"]["hosts"])):
+                    host = json_data["clusterConfig"]["hosts"][i]
+                    ip = host["ablecube"]
+                    ssh_client = connect_to_host(ip)
+                    run_command(f"partprobe {path}", ssh_client)
+                ssh_client.close()
+
+            for path_partition in mpath_path_partition:
+                run_command(f"pvresize {path_partition}")
+
+            run_command(f"lvextend -l +100%FREE {vg_name}/{lv_name}")
+            run_command(f"gfs2_grow {mount_point}")
+
+            for path in mpath_path:
+                for i in range(len(json_data["clusterConfig"]["hosts"])):
+                    host = json_data["clusterConfig"]["hosts"][i]
+                    ip = host["ablecube"]
+                    ssh_client = connect_to_host(ip)
+                    run_command(f"partprobe {path}", ssh_client)
+                ssh_client.close()
+
+            if non_stop_check == "true":
+                run_command("pcs property set maintenance-mode=false")
+
+            ret = createReturn(code=200, val=f"Success to extend GFS Disk")
+            print(json.dumps(json.loads(ret), indent=4))
+
+        elif action == "scan":
+            for i in range(len(json_data["clusterConfig"]["hosts"])):
+                host = json_data["clusterConfig"]["hosts"][i]
+                ip = host["ablecube"]
+                ssh_client = connect_to_host(ip)
+                run_command("for host in /sys/class/scsi_host/*; do echo '- - -' > '$host/scan'; done", ssh_client)
+            ssh_client.close()
+
+            ret = createReturn(code=200, val=f"Success to scan GFS Disk")
+            print(json.dumps(json.loads(ret), indent=4))
+
+        elif action == "add-extend":
+            if non_stop_check == "true":
+                run_command("pcs property set maintenance-mode=true")
+
+            mpath_partition = []
+
+            for mpath in mpath_disks:
+                disk_partition = mpath.replace("dm-uuid-mpath-","dm-uuid-part1-mpath-")
+                mpath_partition.append(disk_partition)
+                run_command(f"parted -s {mpath} mklabel gpt mkpart {gfs_name} 0% 100% set 1 lvm on")
+                run_command(f"pvcreate {disk_partition}")
+
+            for mpath in mpath_disks:
+                disk_partition = mpath.replace("dm-uuid-mpath-","dm-uuid-part1-mpath-")
+                for i in range(len(json_data["clusterConfig"]["hosts"])):
+                    host = json_data["clusterConfig"]["hosts"][i]
+                    ip = host["ablecube"]
+                    ssh_client = connect_to_host(ip)
+                    run_command(f"partprobe {mpath}", ssh_client)
+                    run_command(f"lvmdevices --adddev {disk_partition}", ssh_client)
+                ssh_client.close()
+
+            run_command(f"vgextend {vg_name} {' '.join(mpath_partition)}")
+            run_command(f"lvextend -l +100%FREE /dev/{vg_name}/{lv_name}")
+
+            run_command(f"gfs2_grow {mount_point}")
+
+            if non_stop_check == "true":
+                run_command("pcs property set maintenance-mode=false")
+
+            ret = createReturn(code=200, val=f"Success to Extend Add GFS Disk")
+            print(json.dumps(json.loads(ret), indent=4))
+
+    except Exception as e:
+        ret = createReturn(code=500, val=f"Failed to Rescan and Extend GFS Disk: {str(e)}")
+        print(json.dumps(json.loads(ret), indent=4))
 def main():
     parser = argparse.ArgumentParser(description="Cluster configuration script")
 
@@ -383,6 +560,12 @@ def main():
     parser.add_argument('--lv-names', help='Serveral LV Name.')
     parser.add_argument('--vg-names', help='Serveral VG Name.')
     parser.add_argument('--pv-names', help='Serveral PV Name.')
+    parser.add_argument('--mount-point', help='Mount point for GFS Disk.')
+    parser.add_argument('--rescan', action='store_true',help='Rescan GFS Disk.')
+    parser.add_argument('--extend', action='store_true',help='Extend GFS Disk.')
+    parser.add_argument('--scan', action='store_true',help='Scan HBA GFS Disk.')
+    parser.add_argument('--add-extend', action='store_true',help='Add Disk Extend GFS Disk.')
+    parser.add_argument('--non-stop-check', help='Non-stop check for GFS Disk.')
     args = parser.parse_args()
 
     if len(sys.argv) == 1:
@@ -404,13 +587,14 @@ def main():
         list_gfs()
 
     if args.delete_clvm:
-        if not all ([args.vg_names, args.pv_names]):
-            print("Please provide both '--vg-names' and '--pv-names' when using '--delete-clvm'.")
+        if not all ([args.vg_names, args.pv_names, args.disks]):
+            print("Please provide both '--vg-names' and '--pv-names' and '--disks' when using '--delete-clvm'.")
             parser.print_help()
         else:
             vg_names = args.vg_names.split(',')
             pv_names = args.pv_names.split(',')
-        delete_clvm(vg_names, pv_names)
+            disk_ids = args.disks.split(',')
+        delete_clvm(vg_names, pv_names, disk_ids)
 
     if args.delete_gfs:
         if not all ([args.disks, args.gfs_name, args.lv_names, args.vg_names]):
@@ -422,6 +606,28 @@ def main():
 
     if args.list_hba_wwn:
         list_hba_wwn()
+
+    if args.rescan:
+        if not all ([args.vg_names, args.lv_names, args.mount_point]):
+            print("Please provide both '--vg-names' and '--lv-names' and '--mount-point' when using '--rescan'.")
+            parser.print_help()
+        else:
+            rescan_and_extend_gfs_disk("rescan", args.vg_names, args.lv_names, args.mount_point, None, None, None)
+    elif args.extend:
+        if not all ([args.vg_names, args.lv_names, args.mount_point]):
+            print("Please provide both '--vg-names' and '--lv-names' and '--mount-point', '--non-stop-check' when using '--extend'.")
+            parser.print_help()
+        else:
+            rescan_and_extend_gfs_disk("extend", args.vg_names, args.lv_names, args.mount_point, None, None, args.non_stop_check)
+    elif args.scan:
+        rescan_and_extend_gfs_disk("scan", None, None, None, None, None, None)
+    elif args.add_extend:
+        if not all ([args.vg_names, args.lv_names, args.mount_point, args.disks, args.gfs_name, args.non_stop_check]):
+            print("Please provide both '--vg-names' and '--lv-names' and '--mount-point', '--disks', '--gfs-name', '--non-stop-check' when using '--add-extend'.")
+            parser.print_help()
+        else:
+            mpath_disks = args.disks.split(',')
+            rescan_and_extend_gfs_disk("add-extend", args.vg_names, args.lv_names, args.mount_point, mpath_disks, args.gfs_name, args.non_stop_check)
 
 if __name__ == "__main__":
     main()

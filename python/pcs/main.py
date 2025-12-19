@@ -10,7 +10,6 @@ Copyright (c) 2021 ABLECLOUD Co. Ltd
 
 from pacemaker import *
 from ablestack import *
-import sys
 
 # 함수명 : main
 '''
@@ -43,6 +42,8 @@ def main():
         pcs.stopCluster()
     elif (args.action) == 'sync' :
         pcs.clustersynctime(args.time)
+    elif (args.action) == "ccvm-status":
+        pcs.ccvmStatus()
 
 if __name__ == "__main__":
     main()

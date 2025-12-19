@@ -3,8 +3,8 @@
 # 최초 작성일 : 2021. 04. 02
 
 Name: ablecube
-Version: %{?version}%{!?version:4.2}
-Release: %{?release}%{!?release:2.wip.el9.noarch}
+Version: %{?version}%{!?version:4.4}
+Release: %{?release}%{!?release:0.wip.el9.noarch}
 Source0: %{name}-%{version}.tar.gz
 Summary: ablestack cube package
 

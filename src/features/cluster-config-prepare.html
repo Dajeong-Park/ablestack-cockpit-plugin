@@ -49,9 +49,9 @@
                                     클러스터 구성 준비 마법사는 클러스터를 자동으로 구성하고, 스토리지센터 및 클라우드센터를 구성하기 위해 필요한 다음의 정보를 입력받아 준비합니다.
                                 </p>
                                 <ul>
-                                    <li>HCI를 이용한 가상화 또는 서버 가상화를 사용하기 위한 클러스터</li>
+                                    <li>HCI를 이용한 가상화 또는 서버 가상화를 사용하기 위한 클러스터 또는 로컬 스토리지를 사용하는 단일 서버 구성</li>
                                     <li>모든 호스트 및 가상머신에서 사용자 인증을 위해 공통으로 사용할 SSH Key 정보</li>
-                                    <li>클러스터를 구성하는 호스트 및 가상머신들의 호스트명 및 IP 정보</li>
+                                    <li>클러스터 또는 단일 노드를 구성하는 호스트 및 가상머신들의 호스트명 및 IP 정보</li>
                                     <li>호스트 및 가상머신의 시간 동기화를 위한 시간서버</li>
                                 </ul>
                                 <p>
@@ -62,15 +62,15 @@
                         <div class="pf-c-wizard__main-body" id="div-modal-wizard-cluster-config-cluster-type">
                             <div class="pf-c-content">
                                 <p>
-                                    ABLESTACK은 고성능 컴퓨팅과 안정적인 가상화 환경을 제공합니다. 사용자는 하이퍼 컨버지드 인프라(HCI)와 전통적인 가상화 옵션 중에서 필요에 맞는 솔루션을 선택할 수 있습니다. <br/>
+                                    ABLESTACK은 고성능 컴퓨팅과 안정적인 가상화 환경을 제공합니다. 사용자는 하이퍼 컨버지드 인프라(HCI)와 서버 가상화, 그리고 단일 로컬 구성 옵션 중에서 필요에 맞는 솔루션을 선택할 수 있습니다. <br/>
                                 </p>
                                 <ul>
                                     <li>ABLESTACK HCI는 데이터의 안정적이고 효율적인 관리를 위해 설계되었습니다. Glue 스토리지는 데이터를 여러 위치에 분산시켜 저장하여 높은 가용성과 확장성을 제공합니다.</li>
                                     <li>ABLESTACK VM은 물리적 하드웨어를 추상화하여 여러 가상 머신(VM)에서 동시 실행이 가능하게 하며, 자원의 효율적인 사용과 유연한 시스템 관리를 지원합니다. 이를 통해 서버 통합과 비용 절감이 가능하며, 다양한 운영 체제와 애플리케이션을 격리된 환경에서 구동할 수 있습니다.</li>
-                                    <li>ABLESTACK PowerFlex는 Dell의 블록 스토리지의 고속 데이터 처리와 신뢰성을 제공합니다. 이 스토리지 시스템은 대규모 데이터 작업에 최적화되어 있어, 클라우드 환경에서 뛰어난 성능을 발휘합니다.</li>
+                                    <li>ABLESTACK STANDALONE은 단일 서버에 로컬 스토리지를 활용해 가상화 환경을 구성할 수 있는 옵션입니다. 별도의 스토리지 네트워크 없이도 간편하게 구축할 수 있으며, 소규모 환경이나 비용 효율을 중시하는 사용자에게 적합합니다.</li>
                                 </ul>
-                                     <div class="pf-l-grid pf-m-all-4-col pf-m-gutter">
-                                        <button class="pf-c-button pf-m-secondary pf-m-display-lg" name="cluster-config-cluster-type-card" type="button" style="display:flex;flex-direction: column; align-items: center;justify-content: space-between;" value="ABLESTACK-HCI">
+                                    <div class="pf-l-grid pf-m-all-4-col pf-m-gutter">
+                                        <button class="pf-c-button pf-m-secondary pf-m-display-lg" name="cluster-config-cluster-type-card" type="button" style="display:flex;flex-direction: column; align-items: center;justify-content: space-between;" value="ablestack-hci">
                                             <p style="color:black;">ABLESTACK-HCI</p>
                                             <p style="white-space: normal; word-wrap: break-word; text-align: center; margin-bottom: 10px;">x86 기반의 서버와 가상화 기술, 그리고 소프트웨어 정의 기술을 접목하여 HCI를 구성하는 소프트웨어 스택입니다.</p>
                                             <span class="pf-c-button__icon">
@@ -84,15 +84,15 @@
                                               <i class="fa fa-1x" id="icon-ablestack-vm" aria-hidden="true" style="margin-top: 10px;"></i>
                                             </span>
                                           </button>
-                                          <button class="pf-c-button pf-m-secondary pf-m-display-lg" name="cluster-config-cluster-type-card" type="button" style="display:flex;flex-direction: column; align-items: center;justify-content: space-between;" value="PowerFlex">
-                                            <p style="color:black;">ABLESTACK-PowerFlex</p>
-                                            <p style="white-space: normal; word-wrap: break-word; text-align: center; margin-bottom: 10px;">단일 시스템으로 배포, 관리 및 지원되는 엔터프라이즈급 소프트웨어 정의 블록 및 파일 스토리지 솔루션입니다.</p>
+                                          <button class="pf-c-button pf-m-secondary pf-m-display-lg" name="cluster-config-cluster-type-card" type="button" style="display:flex;flex-direction: column; align-items: center;justify-content: space-between;" value="ablestack-standalone">
+                                            <p style="color:black;">ABLESTACK-STANDALONE</p>
+                                            <p style="white-space: normal; word-wrap: break-word; text-align: center; margin-bottom: 10px;">단일 서버 환경에서 로컬 스토리지를 기반으로 ABLESTACK 제품을 구동하는 소프트웨어 솔루션입니다.</p>
                                             <span class="pf-c-button__icon">
-                                              <i class="fa fa-1x" id="icon-powerflex" aria-hidden="true" style="margin-top: 10px;"></i>
+                                              <i class="fa fa-1x" id="icon-ablestack-standalone" aria-hidden="true" style="margin-top: 10px;"></i>
                                             </span>
                                           </button>
                                           <input type="hidden" id="selected-cluster-type" name="selected-cluster-type" value="">
-                                        </div>
+                                    </div>
                                 </div>
                         </div>
                         <div class="pf-c-wizard__main-body" id="div-modal-wizard-cluster-config-ssh-key">
@@ -216,6 +216,21 @@
                                         </div>
                                         <div class="pf-c-form__group-control">
                                             <input class="pf-c-form-control" style="width:50%" type="text" id="form-input-current-host-name" name="form-input-current-host-name" required="required" disabled/>
+                                        </div>
+                                    </div>
+                                    <div class="pf-c-form__group" id="iscsi-storage-exclusive" style="display: none;">
+                                        <div class="pf-c-form__group-label">
+                                          <label class="pf-c-form__label" for="iscsi-net-switch">
+                                            <span class="pf-c-form__label-text">iSCSI 스토리지 전용</span>
+                                          </label>
+                                        </div>
+                                        <div class="pf-c-form__group-control pf-l-flex pf-m-align-items-center">
+                                          <label class="pf-c-switch">
+                                            <input id="iscsi-net-switch" class="pf-c-switch__input" type="checkbox" aria-label="iSCSI 전용 네트워크 토글" />
+                                            <span class="pf-c-switch__toggle">
+                                              <span class="pf-c-switch__toggle-icon" aria-hidden="true"></span>
+                                            </span>
+                                          </label>
                                         </div>
                                     </div>
                                     <div class="pf-c-form__group" id="div-form-hosts-input-number">

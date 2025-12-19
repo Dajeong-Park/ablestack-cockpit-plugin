@@ -1461,7 +1461,7 @@ function validateStorageVm(){
  * History  : 2021.03.30 최초 작성
  */
 function setScvmOSTypeProcess() {
-    if (os_type == "PowerFlex"){
+    if (os_type == "powerflex"){
         //CPU, Memory,root disk 처리
         $('#form-select-storage-vm-cpu-8').hide();
         $('#form-select-storage-vm-memory-16').hide();

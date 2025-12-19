@@ -23,6 +23,7 @@
         },
         "hosts": [
         ],
-        "extenal_timeserver": ""
+        "extenal_timeserver": "",
+        "iscsi_storage":"false"
     }
 }

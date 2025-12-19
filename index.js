@@ -42,6 +42,7 @@ function checkOSType() {
         cockpit.file('/usr/share/cockpit/ablestack/tools/properties/cluster.json').read().then(function(data) {
             let retVal = JSON.parse(data);
             sessionStorage.setItem('os_type', retVal.clusterConfig.type);
+            sessionStorage.setItem("iscsi_check", retVal.clusterConfig.iscsi_storage);
             console.log(sessionStorage.getItem('os_type'));
             resolve();
         });

@@ -38,7 +38,7 @@ def createArgumentParser():
     # 인자 추가: https://docs.python.org/ko/3/library/argparse.html#the-add-argument-method
 
     # 선택지 추가(동작 선택)
-    tmp_parser.add_argument('action', choices=['list', 'gfs-list'], help="disk action")
+    tmp_parser.add_argument('action', choices=['list', 'gfs-list','mpath-list'], help="disk action")
 
     # output 민감도 추가(v갯수에 따라 output및 log가 많아짐)
     tmp_parser.add_argument("-v", "--verbose", action='count', default=0,
@@ -94,7 +94,7 @@ def listPCIInterface(classify=None):
 """
 def listDiskInterface(H=False, classify=None, action=None):
     disk_path = []
-    if action != 'gfs-list':
+    if action == 'list':
         stream = os.popen("ls -l /dev/disk/by-path/ | awk '{ if($11 != \"\") print substr($11,\"7\",length($11))\" \"\"/dev/disk/by-path/\"$9}'")
         output = stream.read()
         lines = output.splitlines()
@@ -102,19 +102,47 @@ def listDiskInterface(H=False, classify=None, action=None):
             line_sp = line.split()
             if len(line_sp) == 2:
                 disk_path.append(line_sp)
+    else:
+        stream = os.popen("ls -l /dev/disk/by-id/ | grep 'dm-uuid' | grep -v 'LVM' | awk '{ if($11 != \"\") print substr($11,\"7\",length($11))\" \"\"/dev/disk/by-id/\"$9}'")
+        output = stream.read()
+        lines = output.splitlines()
+        for line in lines:
+            line_sp = line.split()
+            if len(line_sp) == 2:
+                disk_path.append(line_sp)
 
-    item = json.loads(lsblk_cmd(J=True, o="name,path,rota,model,size,state,group,type,tran,subsystems,vendor,wwn"))
+    if action == 'mpath-list':
+        item = json.loads(lsblk_cmd(J=True, o="name,kname,path,state,size"))
+    else:
+        item = json.loads(lsblk_cmd(J=True, o="name,kname,path,rota,model,size,state,group,type,tran,subsystems,vendor,wwn"))
+
     bd = item['blockdevices']
     newbd = []
+
     for dev in bd:
         if action == 'gfs-list':
             if 'loop' not in dev['type'] and  (dev['tran'] is None or 'usb' not in dev['tran']) and 'cdrom' not in dev['group']:
                 for dp in disk_path:
-                    if dev["name"] == dp[0]:
-                        dev["path"] = dp[1]
+                    # if dev["name"] == dp[0]:
+                    #     dev["path"] = dp[1]
+                    if "children" in dev:
+                        if dev["children"][0]["kname"] == dp[0]:
+                            dev["children"][0]["id"] = dp[1]
+                        if "children" in dev["children"][0]:
+                            if dev["children"][0]["children"][0]["kname"] == dp[0]:
+                                dev["children"][0]["children"][0]["id"] = dp[1]
                 newbd.append(dev)
+        elif action == 'mpath-list':
+            for dp in disk_path:
+                if "children" in dev:
+                    if dev["children"][0]["kname"] == dp[0]:
+                        dev["children"][0]["id"] = dp[1]
+                    if "children" in dev["children"][0]:
+                        if dev["children"][0]["children"][0]["kname"] == dp[0]:
+                            dev["children"][0]["children"][0]["id"] = dp[1]
+            newbd.append(dev)
         else:
-            if 'loop' not in dev['type']:
+            if 'loop' not in dev['type'] and  (dev['tran'] is None or 'usb' not in dev['tran']) and 'cdrom' not in dev['group']:
                 for dp in disk_path:
                     if dev["name"] == dp[0]:
                         dev["path"] = dp[1]
@@ -123,8 +151,7 @@ def listDiskInterface(H=False, classify=None, action=None):
     item['blockdevices'] = newbd
 
     list_pci = listPCIInterface(classify=classify)
-    item['raidcontrollers'] = [
-    ]
+    item['raidcontrollers'] = []
     for pci in list_pci:
         if 'raid' in pci['Class'].lower() or "Non-Volatile memory controller" in pci['Class']:
             item['raidcontrollers'].append(pci)
@@ -140,10 +167,7 @@ PCI 장치와 디스크의 목록을 출력하는 함수
 :return: dict
 """
 def diskAction(action, H):
-    if action == 'list':
-        return listDiskInterface(H=H)
-    elif action == 'gfs-list':
-        return listDiskInterface(H=H,action=action)
+    return listDiskInterface(H=H,action=action)
 
 
 if __name__ == '__main__':

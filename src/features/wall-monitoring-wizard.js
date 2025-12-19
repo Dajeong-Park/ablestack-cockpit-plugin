@@ -385,7 +385,7 @@ function resetWallMonitoringWizard() {
         host_ping_test_cmd.push(cubehost_ip);
     }
 
-    if (os_type != "ablestack-vm"){
+    if (os_type == "ablebstack-hci"){
         for(var i = 1 ; i <= host_count ; i ++ ){
             var scvm_ip = $('#form-input-wall-monitoring-scvm'+i+'-ip').val();
             host_ping_test_cmd.push(scvm_ip);
@@ -421,18 +421,13 @@ function resetWallMonitoringWizard() {
                             setWallProgressStep("span-wall-progress-step1",2);
                             setWallProgressStep("span-wall-progress-step2",1);
 
-                            if(os_type == "ablestack-vm"){
-                                var prometheus_config_cmd = ['python3', pythonPath + 'config_wall.py', 'configGfs','--ccvm', ccvm_ip];
-                            }else{
-                                var prometheus_config_cmd = ['python3', pythonPath + 'config_wall.py', 'config','--ccvm', ccvm_ip];
-                            }
-
+                            var prometheus_config_cmd = ['python3', pythonPath + 'config_wall.py', 'config','--ccvm', ccvm_ip];
                             prometheus_config_cmd.push('--cube');
                             for(var i = 1 ; i <= host_count ; i ++ ){
                                 var cubehost_ip = $('#form-input-wall-monitoring-cubehost'+i+'-ip').val();
                                 prometheus_config_cmd.push(cubehost_ip);
                             }
-                            if (os_type != "ablestack-vm"){
+                            if (os_type == "ablestack-hci"){
                                 prometheus_config_cmd.push('--scvm');
                                 for(var i = 1 ; i <= host_count ; i ++ ){
                                     var scvm_ip = $('#form-input-wall-monitoring-scvm'+i+'-ip').val();
@@ -472,83 +467,6 @@ function resetWallMonitoringWizard() {
                                                         .catch(function(data){
                                                             console.log("bootstrap_run_check() Error : " + data);
                                                         });
-                                                        /** grafana 11 버전으로 업그레이드 하면서 불필요
-                                                        //=========== 3-2. API key 생성 ===========
-                                                        var api_key_cmd = ['python3', pythonPath + 'create_admin_apikey.py', ccvm_ip, 'ablestack-admin'];
-                                                        if (console_log) { console.log(api_key_cmd); }
-                                                        cockpit.spawn(api_key_cmd, { host: ccvm_ip })
-                                                        .then(function (data) {
-                                                            var api_key_result = JSON.parse(data);
-                                                            if(api_key_result.code=="200") { //정상
-                                                                //=========== 3-3. notification channel 설정 파일 (json) 업데이트 ===========
-                                                                var notifi_channel_config_cmd = ['python3', pythonPath + 'update_noti_json.py', receive_email_addr];
-                                                                if (console_log) { console.log(notifi_channel_config_cmd); }
-                                                                cockpit.spawn(notifi_channel_config_cmd, { host: ccvm_ip })
-                                                                .then(function (data) {
-                                                                    var notifi_channel_config_result = JSON.parse(data);
-                                                                    if(notifi_channel_config_result.code=="200") { //정상
-                                                                        //=========== 3-4. notification channel 생성 ===========
-                                                                         var notifi_channel_create_cmd = ['python3', pythonPath + 'create_noti_channel.py', ccvm_ip];
-                                                                         if (console_log) { console.log(notifi_channel_create_cmd); }
-                                                                         cockpit.spawn(notifi_channel_create_cmd, { host: ccvm_ip })
-                                                                         .then(function (data) {
-                                                                             var notifi_channel_create_result = JSON.parse(data);
-                                                                             if(notifi_channel_create_result.code=="200") { //정상
-                                                                                 //=========== 3-5. smtp - notification channel 테스트 ===========
-                                                                                 var notifi_channel_test_cmd = ['python3', pythonPath + 'test_noti_channel.py', ccvm_ip];
-                                                                                 if (console_log) { console.log(notifi_channel_test_cmd); }
-                                                                                 cockpit.spawn(notifi_channel_test_cmd, { host: ccvm_ip })
-                                                                                 .then(function (data) {
-                                                                                     var notifi_channel_test_result = JSON.parse(data);
-                                                                                     if(notifi_channel_test_result.code=="200") { //정상
-                                                                                         // /root/bootstrap.sh 파일을 실행함.
-                                                                                         cockpit.spawn(["sh", pluginpath+"/shell/host/bootstrap_run.sh","wall"])
-                                                                                         .then(function(data){
-                                                                                             console.log(data);
-                                                                                             setWallProgressStep("span-wall-progress-step3",2);
-                                                                                             //최종 화면 호출
-                                                                                             showDivisionWallConfigFinish();
-                                                                                         })
-                                                                                         .catch(function(data){
-                                                                                             console.log("bootstrap_run_check() Error : " + data);
-                                                                                         });
-                                                                                     } else {
-                                                                                         setWallProgressFail(3);
-                                                                                         alert(notifi_channel_test_result.val);
-                                                                                     }
-                                                                                 })
-                                                                                 .catch(function (data) {
-                                                                                     setWallProgressFail(3);
-                                                                                     alert("notification channel 연결 테스트 실패 : " + data);
-                                                                                 });
-                                                                             } else {
-                                                                                 setWallProgressFail(3);
-                                                                                 alert(notifi_channel_create_result.val);
-                                                                             }
-                                                                         })
-                                                                         .catch(function (data) {
-                                                                             setWallProgressFail(3);
-                                                                             alert("notification channel 생성 실패 : " + data);
-                                                                         });
-                                                                    } else {
-                                                                        setWallProgressFail(3);
-                                                                        alert(notifi_channel_config_result.val);
-                                                                    }
-                                                                })
-                                                                .catch(function (data) {
-                                                                    setWallProgressFail(3);
-                                                                    alert("notification channel 설정 파일 (json) 업데이트 실패 : " + data);
-                                                                });
-                                                            } else {
-                                                                setWallProgressFail(3);
-                                                                alert(api_key_result.val);
-                                                            }
-                                                        })
-                                                        .catch(function (data) {
-                                                            setWallProgressFail(3);
-                                                            alert("API key 생성 실패 : " + data);
-                                                        });
-                                                        */
                                                     } else {
                                                         setWallProgressFail(3);
                                                         alert(smtp_conf_result.val);
@@ -560,7 +478,8 @@ function resetWallMonitoringWizard() {
                                                 });
                                             }else{ // smtp 설정을 생략하고 실행 완료
                                                 // /root/bootstrap.sh 파일을 실행함.
-                                                cockpit.spawn(["sh", pluginpath+"/shell/host/bootstrap_run.sh","wall"])
+                                                cmd = ["sh", pluginpath+"/shell/host/bootstrap_run.sh","wall"];
+                                                cockpit.spawn(cmd)
                                                 .then(function(data){
                                                     console.log(data);
                                                     setWallProgressStep("span-wall-progress-step2",2);
@@ -746,7 +665,7 @@ function setWallReviewInfo() {
             $('#span-wall-monitoring-cubehost'+i+'-ip').text(cubehost_ip);
         }
     }
-    if (os_type != "ablestack-vm"){
+    if (os_type == "ablestack-hci"){
         for(var i = 1 ; i <= host_count ; i ++ ){
             var scvm_ip = $('#form-input-wall-monitoring-scvm'+i+'-ip').val();
             if (scvm_ip == '') {
@@ -849,7 +768,7 @@ function validateWallMonitoringVm() {
             validate_check = false;
         }
     }
-    if (os_type != "ablestack-vm"){
+    if (os_type == "ablestack-hci"){
         for(var i = 1 ; i <= host_count ; i ++ ){
             if (validate_check && $('#form-input-wall-monitoring-scvm'+i+'-ip').val() == "") {
                 alert('SCVM'+i+' 관리 IP를 입력해주세요.');
@@ -1027,7 +946,7 @@ function setWallIpInput(host_count){
     }
     review_el +='            </dd>';
     review_el +='        </div>';
-    if (os_type != "ablestack-vm"){
+    if (os_type == "ablestack-hci"){
         review_el +='        <div class="pf-c-description-list__group">';
         review_el +='            <dt class="pf-c-description-list__term">';
         review_el +='                <span class="pf-c-description-list__text">스토리지센터 VM</span>';
@@ -1045,7 +964,7 @@ function setWallIpInput(host_count){
 
     $('#div-wall-ccvm-ip-area').append(ccvm_el);
     $('#div-wall-cubehost-ip-area').append(cube_host_el);
-    if (os_type != "ablestack-vm"){
+    if (os_type == "ablestack-hci"){
         $('#div-wall-scvm-ip-area').append(scvm_el);
     }
     $('#div-wall-review-area').append(review_el);
@@ -1075,7 +994,7 @@ function autoConfigWallIP(){
 }
 
 function screenChange(){
-    if (os_type == "ablestack-vm"){
+    if (os_type == "ablestack-vm" || os_type == "ablestack-standalone") {
         $('#div-wall-scvm-ip-area').hide();
     }
 }

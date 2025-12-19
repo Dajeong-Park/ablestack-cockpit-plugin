@@ -51,6 +51,9 @@ def resetStorageCenter(args):
 
     # 스토리지센터 가상머신 qcow2 템플릿 삭제
     os.system("rm -rf /var/lib/libvirt/images/scvm.qcow2")
+    
+    # 스토리지센터 설정 파일 삭제
+    os.system("rm -rf /etc/ceph/*")
 
     '''
     # cloudinit iso 삭제

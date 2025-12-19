@@ -97,7 +97,7 @@ def storageCenter(action, H=False):
 
     if action == 'storageCenter':
         try:
-            if os_type == "ABLESTACK-HCI" :
+            if os_type == "ablestack-hci" :
                 # 스토리지센터
                 mgr = check_output(['ceph', 'mgr', 'stat'], universal_newlines=True)
                 mgr_json = json.loads(mgr)
@@ -109,7 +109,7 @@ def storageCenter(action, H=False):
                 else:
                 # ceph 명령어는 정상적으로 전송되지만 ceph mgr module이 활성화되지 않은 경우
                     return createReturn(code=500, val="ceph mgr module이 활성화되지 않았습니다. <br>mgr 상태를 확인하십시오.")
-            elif os_type == "PowerFlex":
+            elif os_type == "powerflex":
                     ip = json_data["clusterConfig"]["pfmp"]["ingress_ip"]
                     value = 'https://'+ip
         except:
@@ -118,7 +118,7 @@ def storageCenter(action, H=False):
 
     else:
         # 스토리지센터 가상머신
-        if os_type == "PowerFlex":
+        if os_type == "powerflex":
             ip = json_data["clusterConfig"]["pfmp"]["ingress_ip"]
             value = 'https://'+ip
         else:

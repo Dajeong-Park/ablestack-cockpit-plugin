@@ -10,6 +10,7 @@ Copyright (c) 2021 ABLECLOUD Co. Ltd
 
 import argparse
 import os
+import subprocess
 import sys
 import json
 import lxml
@@ -29,7 +30,7 @@ def parseArgs():
     parser = argparse.ArgumentParser(description='Pacemaker cluster for Cloud Center VM',
                                      epilog='copyrightⓒ 2021 All rights reserved by ABLECLOUD™')
 
-    parser.add_argument('action', choices=['config', 'create', 'enable', 'disable', 'move', 'cleanup', 'status', 'remove', 'destroy', 'stop','sync'], help='choose one of the actions')
+    parser.add_argument('action', choices=['config', 'create', 'enable', 'disable', 'move', 'cleanup', 'status', 'remove', 'destroy', 'stop','sync','ccvm-status'], help='choose one of the actions')
     parser.add_argument('--cluster', metavar='name', type=str, help='The name of the cluster to be created')
     parser.add_argument('--hosts', metavar='name', type=str, nargs='*', help='Hostnames to form a cluster')
     parser.add_argument('--resource', metavar='name', type=str, help='The name of the resource to be created')
@@ -222,6 +223,7 @@ class Pacemaker:
     # 주요 기능 : 현재 resource의 클러스터 호스트 정보, resource 리소스 실행 여부, block이나 fail 상태 여부 등을 조회하는 기능
     #          이 기능은 두개 이상의 리소스를 가진 클러스터에서도 조회 할 수 있음
     def statusResource(self, resource_name):
+
         self.resource_name = resource_name
 
         resource = []
@@ -293,4 +295,27 @@ class Pacemaker:
             ret = createReturn(code=400, val='Cloud VM Cluster Sync Mechanism Failed.')
             print(json.dumps(json.loads(ret), indent=4))
 
+        return ret
+
+    def ccvmStatus(self):
+        try:
+            result = subprocess.run(
+                "virsh list --all | grep 'ccvm'",
+                shell=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL
+            )
+
+            if result.returncode != 0:
+                message = 'The CloudCenter VM has not been created.'
+                ret = createReturn(code=500, val=message)
+            else:
+                message = 'The CloudCenter virtual machine has been successfully created.'
+                ret = createReturn(code=200, val=message)
+
+        except Exception as e:
+            message = f'Failed to check CloudCenter VM status: {str(e)}'
+            ret = createReturn(code=500, val=message)
+
+        print(json.dumps(json.loads(ret), indent=4))
         return ret

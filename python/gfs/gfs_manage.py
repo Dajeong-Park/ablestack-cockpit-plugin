@@ -94,7 +94,7 @@ def install_packages(remote_ips):
 def modify_lvm_conf(ips):
     """Modify the LVM configuration file on the remote hosts."""
     try:
-        if os_type == "PowerFlex":
+        if os_type == "powerflex":
             powerflex_disk_name = os.popen("lsblk -d -o name,size | grep scini | grep 512 | awk '{print $1}'").read().strip()
             modify_command = (
                 'sed -i \'s/# types = \\[ "fd", 16 \\]/types = \\[ "scini", 16 \\]/\' /etc/lvm/lvm.conf;'
@@ -206,7 +206,7 @@ def init_pcs_cluster(disks,vg_name,lv_name,list_ips):
                                 run_command(f"partprobe /dev/{single_disk}",ssh_client,ignore_errors=True)
                             ssh_client.close()
                     else:
-                        partition = f"{disk}1"
+                        partition = disk.replace("dm-uuid-mpath-","dm-uuid-part1-mpath-")
                         run_command(f"pvremove {partition}",ignore_errors=True)
                         run_command(f"echo -e 'd\nw\n' | fdisk {disk} >/dev/null 2>&1", ignore_errors=True)
 
@@ -216,20 +216,20 @@ def init_pcs_cluster(disks,vg_name,lv_name,list_ips):
                             run_command(f"partprobe {disk}",ssh_client,ignore_errors=True)
                             ssh_client.close()
 
-        rc_local_init_command =(
-            'systemctl disable --now rc-local.service;'
-            'sed -i "/^\\[Install\\]/,/^WantedBy=multi-user.target$/d" /usr/lib/systemd/system/rc-local.service;'
-            'sed -i "/^partprobe/,/^lvmdevices --adddev$/d" /etc/rc.local;'
-        )
+        # rc_local_init_command =(
+        #     'systemctl disable --now rc-local.service;'
+        #     'sed -i "/^\\[Install\\]/,/^WantedBy=multi-user.target$/d" /usr/lib/systemd/system/rc-local.service;'
+        #     'sed -i "/^partprobe/,/^lvmdevices --adddev$/d" /etc/rc.local;'
+        # )
 
         for ip in list_ips:
             ssh_client = connect_to_host(ip)
             # rc.local 파일 및 서비스 초기화
-            status = run_command("systemctl is-enabled rc-local.service", ssh_client, ignore_errors=True).strip()
-            if status == "enabled":
-                run_command(rc_local_init_command, ssh_client, ignore_errors=True)
+            # status = run_command("systemctl is-enabled rc-local.service", ssh_client, ignore_errors=True).strip()
+            # if status == "enabled":
+            #     run_command(rc_local_init_command, ssh_client, ignore_errors=True)
             # lvm.conf 초기화
-            if os_type == "PowerFlex":
+            if os_type == "powerflex":
                 run_command('sed -i \'s/types = \\[ "scini", 16 \\]/# types = \\[ "fd", 16 \\]/\' /etc/lvm/lvm.conf',ssh_client,ignore_errors=True)
             ssh_client.close()
 
@@ -295,7 +295,7 @@ def get_lv_path(vg_name, lv_name):
     raise FileNotFoundError(f"Logical Volume {vg_name}/{lv_name} 경로를 찾을 수 없습니다.")
 
 def create_gfs(disks, vg_name, lv_name, gfs_name, mount_point, cluster_name, num_journals, list_ips):
-    time.sleep(20)
+    time.sleep(25)
     """Create and a single GFS2 file system on the provided disks."""
     try:
         # Prepare a list to store disk devices
@@ -318,7 +318,11 @@ def create_gfs(disks, vg_name, lv_name, gfs_name, mount_point, cluster_name, num
                     ssh_client = connect_to_host(ip)
                     run_command(f"partprobe {disk}", ssh_client, ignore_errors=True)
             # 파티션 이름 확인
-            partition = f"{disk}1"
+            if "mpath" not in disk:
+                partition = f"{disk}1"
+            else:
+                partition = disk.replace("dm-uuid-mpath-","dm-uuid-part1-mpath-")
+
             # 물리 볼륨 생성
             run_command(f"pvcreate -ff --yes {partition}")
             # PV 디스크 목록에 추가
@@ -345,21 +349,21 @@ def create_gfs(disks, vg_name, lv_name, gfs_name, mount_point, cluster_name, num
                         single_partition = f"{single_disk}1"
                         run_command(f"partprobe /dev/{single_disk}", ssh_client, ignore_errors=True)
                         run_command(f"lvmdevices --adddev /dev/{single_partition} ", ssh_client, ignore_errors=True)
-                        run_command(f"grep -qxF 'partprobe /dev/{single_disk}' /etc/rc.local || echo 'partprobe /dev/{single_disk}' >> /etc/rc.local", ssh_client, ignore_errors=True)
-                        run_command(f"grep -qxF 'lvmdevices --adddev /dev/{single_partition}' /etc/rc.local || echo 'lvmdevices --adddev -y /dev/{single_partition}' >> /etc/rc.local", ssh_client, ignore_errors=True)
+                        # run_command(f"grep -qxF 'partprobe /dev/{single_disk}' /etc/rc.local || echo 'partprobe /dev/{single_disk}' >> /etc/rc.local", ssh_client, ignore_errors=True)
+                        # run_command(f"grep -qxF 'lvmdevices --adddev /dev/{single_partition}' /etc/rc.local || echo 'lvmdevices --adddev -y /dev/{single_partition}' >> /etc/rc.local", ssh_client, ignore_errors=True)
                 else:
-                        partition = f"{disk}1"
+                        partition = disk.replace("dm-uuid-mpath-","dm-uuid-part1-mpath-")
 
                         run_command(f"partprobe {disk}", ssh_client, ignore_errors=True)
                         run_command(f"lvmdevices --adddev {partition} ", ssh_client, ignore_errors=True)
-                        run_command(f"echo -e 'partprobe {disk}\nlvmdevices --adddev {partition}' >> /etc/rc.local ", ssh_client, ignore_errors=True)
+                        # run_command(f"echo -e 'partprobe {disk}\nlvmdevices --adddev {partition}' >> /etc/rc.local ", ssh_client, ignore_errors=True)
 
-            status = run_command("systemctl is-active rc-local.service", ssh_client, ignore_errors=True).strip()
+            # status = run_command("systemctl is-active rc-local.service", ssh_client, ignore_errors=True).strip()
             run_command("pcs resource cleanup ", ssh_client, ignore_errors=True)
-            if status != "active":
-                run_command("chmod +x /etc/rc.local /etc/rc.d/rc.local", ssh_client, ignore_errors=True)
-                run_command("echo -e '\n[Install]\nWantedBy=multi-user.target' >> /usr/lib/systemd/system/rc-local.service", ssh_client, ignore_errors=True)
-                run_command("systemctl enable --now rc-local.service", ssh_client, ignore_errors=True)
+            # if status != "active":
+                # run_command("chmod +x /etc/rc.local /etc/rc.d/rc.local", ssh_client, ignore_errors=True)
+                # run_command("echo -e '\n[Install]\nWantedBy=multi-user.target' >> /usr/lib/systemd/system/rc-local.service", ssh_client, ignore_errors=True)
+                # run_command("systemctl enable --now rc-local.service", ssh_client, ignore_errors=True)
             ssh_client.close()
 
         # Configure GFS2 and LVM resources
@@ -367,7 +371,7 @@ def create_gfs(disks, vg_name, lv_name, gfs_name, mount_point, cluster_name, num
         run_command(f"pcs resource clone {gfs_name}_res interleave=true")
         run_command(f"pcs constraint order start glue-locking-clone then {gfs_name}_res-clone")
         run_command(f"pcs constraint colocation add {gfs_name}_res-clone with glue-locking-clone")
-        run_command(f"pcs resource create {gfs_name} --group {gfs_name}-group ocf:heartbeat:Filesystem device=\"{lv_path}\" directory=\"{mount_point}\" fstype=\"gfs2\" options=noatime op monitor timeout=120s interval=10s on-fail=fence > /dev/null")
+        run_command(f"pcs resource create {gfs_name} --group {gfs_name}-group ocf:heartbeat:Filesystem device=\"{lv_path}\" directory=\"{mount_point}\" fstype=\"gfs2\" options=noatime op monitor timeout=120s interval=10s op start timeout=80s op stop timeout=80s on-fail=fence > /dev/null")
         run_command(f"pcs resource clone {gfs_name} interleave=true")
         run_command(f"pcs constraint order start {gfs_name}_res-clone then {gfs_name}-clone")
         run_command(f"pcs constraint colocation add {gfs_name}_res-clone with {gfs_name}-clone")
@@ -383,7 +387,7 @@ def create_gfs(disks, vg_name, lv_name, gfs_name, mount_point, cluster_name, num
                         run_command(f"partprobe /dev/{single_disk}", ssh_client, ignore_errors=True)
                         run_command(f"lvmdevices --adddev /dev/{single_partition} ", ssh_client, ignore_errors=True)
                 else:
-                        partition = f"{disk}1"
+                        partition = disk.replace("dm-uuid-mpath-","dm-uuid-part1-mpath-")
                         run_command(f"partprobe {disk}", ssh_client, ignore_errors=True)
                         run_command(f"lvmdevices --adddev {partition} ", ssh_client, ignore_errors=True)
             run_command("pcs resource cleanup ", ssh_client, ignore_errors=True)
@@ -397,62 +401,22 @@ def create_gfs(disks, vg_name, lv_name, gfs_name, mount_point, cluster_name, num
 
 def create_ccvm_cluster(gfs_name, mount_point, cluster_name, list_ips):
     try:
-        time.sleep(15)
+        gfs_mount_check = os.system("mount | grep -w 'glue-gfs' > /dev/null 2>&1")
 
-        run_command("cp "+ pluginpath + f"/tools/vmconfig/ccvm/ccvm.xml {mount_point}/ccvm.xml")
-        run_command(f"cp /var/lib/libvirt/images/ablestack-template.qcow2 {mount_point}/ccvm.qcow2")
-        run_command(f"qemu-img resize {mount_point}/ccvm.qcow2 +350G")
+        if gfs_mount_check != 0:
+            time.sleep(30)
+            file_check = os.system("ls /mnt/glue-gfs/ccvm.qcow2 > /dev/null 2>&1")
+            run_command("cp "+ pluginpath + f"/tools/vmconfig/ccvm/ccvm.xml {mount_point}/ccvm.xml")
+            if file_check != 0:
+                run_command(f"cp /var/lib/libvirt/images/ablestack-template.qcow2 {mount_point}/ccvm.qcow2")
+                run_command(f"qemu-img resize {mount_point}/ccvm.qcow2 +350G")
+        else:
+            file_check = os.system("ls /mnt/glue-gfs/ccvm.qcow2 > /dev/null 2>&1")
+            run_command("cp "+ pluginpath + f"/tools/vmconfig/ccvm/ccvm.xml {mount_point}/ccvm.xml")
+            if file_check != 0:
+                run_command(f"cp /var/lib/libvirt/images/ablestack-template.qcow2 {mount_point}/ccvm.qcow2")
+                run_command(f"qemu-img resize {mount_point}/ccvm.qcow2 +350G")
 
-        # if len(list_ips) % 2 == 0:
-        #     run_command(f"virsh create {mount_point}/ccvm.xml")
-        #     ip = run_command("grep 'ccvm-mngt' /etc/hosts | awk '{print $1}'").strip()
-
-        #     # Setup qdevice
-        #     qdevice_command = (
-        #         "echo 'hacluster:password' | chpasswd; "
-        #         "systemctl enable --now pcsd; "
-        #         "pcs qdevice setup model net --enable --start; "
-        #         "firewall-cmd --permanent --add-service=high-availability; "
-        #         "firewall-cmd --add-service=high-availability"
-        #     )
-
-        #     retries = 5
-        #     interval = 2
-        #     for _ in range(retries):
-        #         response = subprocess.run(
-        #             ["ping", "-c", "1", "ccvm"],
-        #             stdout=subprocess.PIPE,
-        #             stderr=subprocess.PIPE,
-        #             text=True
-        #         )
-        #         if response.returncode == 0:
-        #             time.sleep(2)
-        #             ssh_client = connect_to_host(ip)
-        #             run_command(qdevice_command, ssh_client)
-        #             ssh_client.close()
-        #             break
-        #         else:
-        #             time.sleep(interval)
-
-        #     pcs_command = (
-        #         f"pcs host auth {ip} -u hacluster -p password; "
-        #         "pcs cluster stop --all; "
-        #         f"pcs quorum device add model net host={ip} algorithm=ffsplit; "
-        #         "pcs cluster start --all;"
-        #     )
-        #     run_command(pcs_command)
-
-        #     ccvm_command = (
-        #         "virsh destroy ccvm; "
-        #         "sed -i 's|/mnt/ccvm.qcow2|/mnt/glue-gfs/ccvm.qcow2|g' /mnt/ccvm.xml; "
-        #         f"cp {mount_point}/ccvm.* /mnt/glue-gfs/; "
-        #         f"rm -rf {mount_point}/ccvm.*;"
-        #     )
-        #     time.sleep(40)
-        #     run_command(ccvm_command)
-
-        #     config_path = f"{mount_point}/glue-gfs/ccvm.xml"
-        # else:
         config_path = f"{mount_point}/ccvm.xml"
 
         pcs_resource_command = (
@@ -536,26 +500,26 @@ def extend_pcs_cluster(username,password,stonith_info,mount_point,list_ips):
                     partition = f"{disk}1"
                     run_command(f"partprobe /dev/mapper/{disk}", ssh_client, ignore_errors=True)
                     run_command(f"lvmdevices --adddev /dev/mapper/{partition}", ssh_client, ignore_errors=True)
-                    if ip == list_ips[-1]:
-                        run_command(f"echo -e 'partprobe /dev/mapper/{disk}\nlvmdevices --adddev /dev/mapper/{partition}' >> /etc/rc.local", ssh_client, ignore_errors=True)
+                    # if ip == list_ips[-1]:
+                    #     run_command(f"echo -e 'partprobe /dev/mapper/{disk}\nlvmdevices --adddev /dev/mapper/{partition}' >> /etc/rc.local", ssh_client, ignore_errors=True)
 
                 ssh_client.close()
             else:
                 single_disk_arr = run_command("lsblk -r -n -o NAME,TYPE -d | grep -v rom | awk '{print $1}'", ssh_client).split()
                 for disk in single_disk_arr:
-                    partition = f"{disk}1"
+                    partition = disk.replace("dm-uuid-mpath-","dm-uuid-part1-mpath-")
                     run_command(f"partprobe /dev/{disk}", ssh_client, ignore_errors=True)
                     run_command(f"lvmdevices --adddev /dev/{partition}", ssh_client, ignore_errors=True)
-                    if ip == list_ips[-1]:
-                        run_command(f"grep -qxF 'partprobe /dev/{disk}' /etc/rc.local || echo 'partprobe /dev/{disk}' >> /etc/rc.local", ssh_client, ignore_errors=True)
-                        run_command(f"grep -qxF 'lvmdevices --adddev -y /dev/{partition}' /etc/rc.local || echo 'lvmdevices --adddev -y /dev/{partition}' >> /etc/rc.local", ssh_client, ignore_errors=True)
+                    # if ip == list_ips[-1]:
+                    #     run_command(f"grep -qxF 'partprobe /dev/{disk}' /etc/rc.local || echo 'partprobe /dev/{disk}' >> /etc/rc.local", ssh_client, ignore_errors=True)
+                    #     run_command(f"grep -qxF 'lvmdevices --adddev -y /dev/{partition}' /etc/rc.local || echo 'lvmdevices --adddev -y /dev/{partition}' >> /etc/rc.local", ssh_client, ignore_errors=True)
 
                 ssh_client.close()
 
         run_command("pcs resource cleanup", ignore_errors=True)
-        run_command("chmod +x /etc/rc.local /etc/rc.d/rc.local", ignore_errors=True)
-        run_command("echo -e '\n[Install]\nWantedBy=multi-user.target' >> /usr/lib/systemd/system/rc-local.service", ignore_errors=True)
-        run_command("systemctl enable --now rc-local.service", ignore_errors=True)
+        # run_command("chmod +x /etc/rc.local /etc/rc.d/rc.local", ignore_errors=True)
+        # run_command("echo -e '\n[Install]\nWantedBy=multi-user.target' >> /usr/lib/systemd/system/rc-local.service", ignore_errors=True)
+        # run_command("systemctl enable --now rc-local.service", ignore_errors=True)
 
         ret = createReturn(code=200, val="Extend Pcs Cluster Success")
         return print(json.dumps(json.loads(ret), indent=4))
@@ -586,7 +550,7 @@ def check_ipmi(stonith_str):
             username = info["login"]
             password = info["passwd"]
 
-            command = f'ipmitool -I lanplus -H {ip} -U {username} -P "{password}" power status'
+            command = f"ipmitool -I lanplus -H {ip} -U {username} -P '{password}' power status"
             try:
                 result = run_command(command, ignore_errors=False).strip()
                 if not result:  # Check if the result is empty
@@ -777,18 +741,17 @@ def alert_setup(list_ips):
         if not os.path.exists(pcmk_log_file):
             for ip in list_ips:
                 ssh_client = connect_to_host(ip)
-                hostname = run_command("hostname", ssh_client)
                 commands = [
                     f"touch {pcmk_log_file}",
                     f"chown hacluster:haclient {pcmk_log_file}",
-                    f"chmod 600 {pcmk_log_file}",
-                    f"(crontab -l 2>/dev/null; echo \"@reboot /usr/bin/sleep 20 && /usr/sbin/pcs stonith enable fence-{hostname}\") | crontab -"
+                    f"chmod 600 {pcmk_log_file}"
                 ]
                 for cmd in commands:
                     run_command(cmd, ssh_client)
                 ssh_client.close()
-            run_command(f"pcs alert create id=alert_file description='Log events to a file.' path={path}")
-            run_command(f"pcs alert recipient add alert_file id=alert_logfile value={pcmk_log_file}")
+
+        run_command(f"pcs alert create id=alert_file description='Log events to a file.' path={path}")
+        run_command(f"pcs alert recipient add alert_file id=alert_logfile value={pcmk_log_file}")
 
         ret = createReturn(code=200, val="Pcs Alert Success")
         return print(json.dumps(json.loads(ret), indent=4))

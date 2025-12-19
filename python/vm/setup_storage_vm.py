@@ -60,7 +60,7 @@ def setupStorageVm(args):
     success_bool = True
 
     # 스토리지 가상머신용 qcow2 이미지 생성
-    if os_type == "PowerFlex":
+    if os_type == "powerflex":
         check_err = os.system("/usr/bin/cp -f /var/lib/libvirt/images/powerflex-scvm-template.qcow2 /var/lib/libvirt/images/scvm.qcow2")
         if check_err != 0 :
             success_bool = False

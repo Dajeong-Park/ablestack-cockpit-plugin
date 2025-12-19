@@ -34,16 +34,10 @@
                                     <li class="pf-c-wizard__nav-item">
                                         <button class="pf-c-wizard__nav-link" id="nav-button-cloud-vm-network">네트워크</button>
                                     </li>
-                                    <li class="pf-c-wizard__nav-item">
-                                        <button class="pf-c-wizard__nav-link" id="nav-button-cloud-vm-disk" style="display:none;">디스크</button>
-                                    </li>
                                 </ol>
                             </li>
                             <li class="pf-c-wizard__nav-item">
                                 <button class="pf-c-wizard__nav-link" id="nav-button-cloud-vm-additional">추가 네트워크 정보</button>
-                            </li>
-                            <li class="pf-c-wizard__nav-item">
-                                <button class="pf-c-wizard__nav-link" id="nav-button-cloud-vm-ipmi" style="display: none;">IPMI 정보</button>
                             </li>
                             <li class="pf-c-wizard__nav-item">
                                 <button class="pf-c-wizard__nav-link" id="nav-button-cloud-vm-ssh-key">SSH Key 정보</button>
@@ -202,7 +196,7 @@
                                             </div>
                                             <div class="pf-c-form__group-label">
                                                 <label class="pf-c-form__label" id="form-select-cloud-vm-root-disk" name="form-select-cloud-vm-root-disk" style="width:40%">
-                                                    <span class="pf-c-form__label-text" id="form-select-cloud-vm-root-disk-size">150 GiB (THIN Provisioning)</span>
+                                                    <span class="pf-c-form__label-text" id="form-select-cloud-vm-root-disk-size">500 GiB (THIN Provisioning)</span>
                                                 </label>
                                             </div>
                                         </div>
@@ -300,76 +294,11 @@
                                     <div class="pf-c-alert__description">
                                         <p>클라우드센터에 접근하고자 하는 네트워크 위치에 따라 가상머신에 할당할 네트워크와 네트워크의 상위 브릿지를 선택합니다.
                                             관리네트워크는 호스트를 관리하기 위해 필수적인 네트워크이며, 기본 선택되어 있고, 선택 여부를 변경할 수 없습니다.
-                                            서비스네트워크는 사용자가 접근하고자 하는 네트워크 위치이며, 관리네트워크와 서비스네트워크가 다른 경우 선택합니다.
+                                            관리네트워크가 다른 경우 선택합니다.
                                         </p>
                                         <p>가상머신에 네트워크를 할당하기 전에 반드시 상위 브릿지를 먼저 생성해야 합니다. </p>
                                     </div>
                                 </div>
-                            </div>
-                        </div>
-                        <div class="pf-c-wizard__main-body" id="div-modal-wizard-cloud-vm-disk" style="display:none;">
-                            <p>
-                                클라우드 가상머신이 GFS용 디스크로 관리할 '호스트의 iSCSI 또는 SAN 디스크'를 선택해야 합니다.
-                            </p>
-                            <form novalidate class="pf-c-form pf-m-horizontal" style="margin-left:15px;margin-top:32px">
-                                <section class="pf-c-form__section">
-                                    <div class="pf-c-form__group" style="display: block;">
-                                        <div class="pf-c-form__group-label">
-                                            <label class="pf-c-form__label" for="form-list-cloud-vm-data-disk">
-                                                <span class="pf-c-form__label-text">GFS용 디스크 구성 대상 장치</span>
-                                                <span class="pf-c-form__label-required" aria-hidden="true">&#42;</span>
-                                            </label>
-                                        </div>
-                                        <div class="pf-c-form__group-control pf-m-stack" id="disk-cloud-vm-pci-list" style="margin-top:8px;max-height: 300px;overflow-y: auto;">
-                                        </div>
-                                    </div>
-                                </section>
-                            </form>
-                            <br/>
-                            <div class="pf-c-alert pf-m-info pf-m-inline" aria-label="VM Compute Info" style="margin-left:15px;margin-top:32px">
-                                <div class="pf-c-alert__icon">
-                                    <i class="fas fa-fw fa-info-circle" aria-hidden="true"></i>
-                                </div>
-                                <p class="pf-c-alert__title pf-m-truncate">
-                                    <strong><span class="pf-screen-reader">Info alert:</span>GFS용 디스크 자원 구성 시 참고사항</strong>
-                                </p>
-                                <div class="pf-c-alert__description">
-                                    <p>
-                                       GFS 파일 시스템은 Linux 커널 파일 시스템 인터페이스(VFS 레이어)와 직접 연결 시키는 원시적 파일 시스템입니다.
-
-                                       사용할 GFS용 디스크가 알맞는지 종류 및 사이즈 및 경로를 잘 확인하시길 바랍니다.
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="pf-c-wizard__main-body" id="div-modal-wizard-cloud-vm-ipmi" style="display: none;">
-                            <div class="pf-c-content">
-                                <p>
-                                    클라우드센터 VM에 일반가상화를 위해 필요한 각 호스트의 IPMI 정보를 설정합니다. 아래의 항목에 값을 입력하십시오.
-                                </p>
-                                <form novalidate class="pf-c-form pf-m-horizontal" style="margin-left:15px;margin-top:32px">
-                                    <section class="pf-c-form__section">
-                                        <div class="pf-c-form__group">
-                                            <div class="pf-c-form__group-label">
-                                                <label class="pf-c-form__label">
-                                                    <span class="pf-c-form__label-text">IPMI 구성 준비</span>
-                                                    <span class="pf-c-form__label-required" aria-hidden="true">&#42;</span>
-                                                </label>
-                                            </div>
-                                            <div class="pf-c-form__group-control pf-m-inline" style="margin-top:10px">
-                                                <div class="pf-c-radio">
-                                                    <input class="pf-c-radio__input" type="radio" id="form-radio-ipmi-common-credentials" name="radio-ipmi-ccvm" value="common" checked/>
-                                                    <label class="pf-c-radio__label" for="form-radio-ipmi-common-credentials">공통 자격 증명</label>
-                                                </div>
-                                                <div class="pf-c-radio">
-                                                    <input class="pf-c-radio__input" type="radio" id="form-radio-ipmi-individual-credentials" name="radio-ipmi-ccvm" value="individual"/>
-                                                    <label class="pf-c-radio__label" for="form-radio-ipmi-individual-credentials">개별 자격 증명</label>
-                                                </div>
-                                            </div>
-                                        </div>
-                                            <div id="div-ipmi-credentials" style="border-top-width: thin; border-top-style: groove; border-top-color: #d2d2d2;"></div>
-                                    </section>
-                                </form>
                             </div>
                         </div>
                         <div class="pf-c-wizard__main-body" id="div-modal-wizard-cloud-vm-additional">
@@ -406,6 +335,21 @@
                                             </div>
                                             <div class="pf-c-form__group-control">
                                                 <input class="pf-c-form-control" style="width:50%" type="text" id="form-input-current-host-name-ccvm" name="form-input-current-host-name-ccvm" required="required" disabled/>
+                                            </div>
+                                        </div>
+                                        <div class="pf-c-form__group" id="cloud-iscsi-storage-exclusive" style="display: none;">
+                                            <div class="pf-c-form__group-label">
+                                              <label class="pf-c-form__label" for="cloud-iscsi-net-switch">
+                                                <span class="pf-c-form__label-text">iSCSI 스토리지 전용</span>
+                                              </label>
+                                            </div>
+                                            <div class="pf-c-form__group-control pf-l-flex pf-m-align-items-center">
+                                              <label class="pf-c-switch">
+                                                <input id="cloud-iscsi-net-switch" class="pf-c-switch__input" type="checkbox" aria-label="iSCSI 전용 네트워크 토글" disabled/>
+                                                <span class="pf-c-switch__toggle">
+                                                  <span class="pf-c-switch__toggle-icon" aria-hidden="true"></span>
+                                                </span>
+                                              </label>
                                             </div>
                                         </div>
                                         <div class="pf-c-form__group" id="div-form-hosts-input-number-ccvm">
@@ -686,16 +630,6 @@
                                                     </div>
                                                 </dd>
                                             </div>
-                                            <div class="pf-c-description-list__group">
-                                                <dt class="pf-c-description-list__term">
-                                                    <span class="pf-c-description-list__text">디스크</span>
-                                                </dt>
-                                                <dd class="pf-c-description-list__description">
-                                                    <div class="pf-c-description-list__text">
-                                                        <span id="span-cloud-vm-data-disk"></span>
-                                                    </div>
-                                                </dd>
-                                            </div>
                                         </dl>
                                     </div>
                                 </div>
@@ -765,7 +699,6 @@
                                     </div>
                                 </div>
                             </div>
-                            <div class="pf-c-accordion" style="margin-top:32px;margin-left:10px;display: none;" id="div-accordion-cloud-ipmi"></div>
                             <div class="pf-c-accordion" style="margin-top:32px;margin-left:10px">
                                 <h3>
                                     <button class="pf-c-accordion__toggle" aria-expanded="false" id="button-accordion-cloud-vm-ssh-key">
@@ -809,7 +742,7 @@
                                 클라우드센터 가상머신을 배포 중입니다. 전체 5단계 중 1단계 진행 중입니다.
                             </p>
 
-                            <div class="pf-c-content" style="margin-top:30px;margin-left:15px">
+                            <div class="pf-c-content" style="margin-top:30px;margin-left:15px" id="div-ccvm-progress-step1">
                                 <span class="pf-c-label pf-m-blue" id="span-ccvm-progress-step1">
                                     <span class="pf-c-label__content">
                                         <span class="pf-c-label__icon">
@@ -817,9 +750,9 @@
                                         </span><p>준비중</p>
                                     </span>
                                 </span>
-                                <span class="pf-c-label__content" style="margin-left:4px" id="span-ccvm-progress-step1" name="span-ccvm-progress-step1-name">클러스터 구성 HOST 네트워크 연결 테스트</span>
+                                <span class="pf-c-label__content" style="margin-left:4px" id="span-ccvm-progress-step1-text" name="span-ccvm-progress-step1-name">클러스터 구성 HOST 네트워크 연결 테스트</span>
                             </div>
-                            <div class="pf-c-content" style="margin-top:30px;margin-left:15px">
+                            <div class="pf-c-content" style="margin-top:30px;margin-left:15px" id="div-ccvm-progress-step2">
                                 <span class="pf-c-label pf-m-blue" id="span-ccvm-progress-step2">
                                     <span class="pf-c-label__content">
                                         <span class="pf-c-label__icon">
@@ -827,7 +760,7 @@
                                         </span><p>준비중</p>
                                     </span>
                                 </span>
-                                <span class="pf-c-label__content" style="margin-left:4px" id="span-ccvm-progress-step2" name="span-ccvm-progress-step2-name">클러스터 구성 설정 초기화 작업</span>
+                                <span class="pf-c-label__content" style="margin-left:4px" id="span-ccvm-progress-step2-text" name="span-ccvm-progress-step2-name">클러스터 구성 설정 초기화 작업</span>
                             </div>
                             <div class="pf-c-content" style="margin-top:30px;margin-left:15px">
                                 <span class="pf-c-label pf-m-blue" id="span-ccvm-progress-step3">

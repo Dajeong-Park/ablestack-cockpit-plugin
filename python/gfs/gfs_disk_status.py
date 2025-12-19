@@ -118,12 +118,15 @@ def filter_gfs2_mounted_devices(blockdevices, gfs2_mounts):
                                 for lvm in sub_child['children']:
                                     for gfs2_dev, gfs2_mount in gfs2_mounts:
                                         if lvm['path'] == gfs2_dev:
+                                            kname = sub_child['kname']
+                                            id = os.popen(f"ls -al /dev/disk/by-id/ | grep -w {kname} | grep 'dm-uuid' | awk '{{print $9}}'").read().strip()
                                             filtered_devices.append({
                                                 "lvm": lvm['path'],
                                                 "multipath": sub_child['path'],
                                                 "device": device['path'],
                                                 "mountpoint": gfs2_mount,
-                                                "size": lvm['size']
+                                                "size": lvm['size'],
+                                                "disk_id": "/dev/disk/by-id/"+id
                                             })
     else:
         for device in blockdevices:
@@ -147,26 +150,51 @@ def group_by_mountpoint(devices):
     """
     mountpoint 기준으로 그룹화하고, multipath와 device를 배열로 묶음
     """
-    grouped = defaultdict(lambda: {"lvm": "", "multipaths": [], "devices": [], "size": ""})
+    multipath_check = os.popen("multipath -l -v 1").read().strip()
+    if multipath_check != "":
+        grouped = defaultdict(lambda: {"lvm": "", "multipaths": [], "devices": [], "size": "", "disk_id": []})
 
-    for dev in devices:
-        mountpoint = dev["mountpoint"]
-        grouped[mountpoint]["lvm"] = dev["lvm"]
-        grouped[mountpoint]["size"] = dev["size"]
-        grouped[mountpoint]["multipaths"].append(dev["multipath"])
-        grouped[mountpoint]["devices"].append(dev["device"])
+        for dev in devices:
 
-    # 결과를 리스트 형태로 변환
-    return [
-        {
-            "lvm": value["lvm"],
-            "mountpoint": key,
-            "size": value["size"],
-            "multipaths": list(set(value["multipaths"])),
-            "devices": list(set(value["devices"]))
-        }
-        for key, value in grouped.items()
-    ]
+            mountpoint = dev["mountpoint"]
+            grouped[mountpoint]["lvm"] = dev["lvm"]
+            grouped[mountpoint]["size"] = dev["size"]
+            grouped[mountpoint]["multipaths"].append(dev["multipath"])
+            grouped[mountpoint]["devices"].append(dev["device"])
+            grouped[mountpoint]["disk_id"].append(dev["disk_id"])
+        # 결과를 리스트 형태로 변환
+        return [
+            {
+                "lvm": value["lvm"],
+                "mountpoint": key,
+                "size": value["size"],
+                "multipaths": list(set(value["multipaths"])),
+                "devices": list(set(value["devices"])),
+                "disk_id": list(set(value["disk_id"]))
+            }
+            for key, value in grouped.items()
+        ]
+    else:
+        grouped = defaultdict(lambda: {"lvm": "", "multipaths": [], "devices": [], "size": ""})
+
+        for dev in devices:
+
+            mountpoint = dev["mountpoint"]
+            grouped[mountpoint]["lvm"] = dev["lvm"]
+            grouped[mountpoint]["size"] = dev["size"]
+            grouped[mountpoint]["multipaths"].append(dev["multipath"])
+            grouped[mountpoint]["devices"].append(dev["device"])
+        # 결과를 리스트 형태로 변환
+        return [
+            {
+                "lvm": value["lvm"],
+                "mountpoint": key,
+                "size": value["size"],
+                "multipaths": list(set(value["multipaths"])),
+                "devices": list(set(value["devices"]))
+            }
+            for key, value in grouped.items()
+        ]
 
 
 def listDiskInterface(H=False, classify=None):
@@ -176,7 +204,7 @@ def listDiskInterface(H=False, classify=None):
     gfs2_mounts = get_gfs2_mounts()
 
     # 디스크 정보 수집
-    item = json.loads(lsblk_cmd(J=True, o="name,path,size,group,type,mountpoint"))
+    item = json.loads(lsblk_cmd(J=True, o="name,kname,path,size,group,type,mountpoint"))
     bd = item['blockdevices']
 
     # GFS2로 마운트된 디스크만 필터링

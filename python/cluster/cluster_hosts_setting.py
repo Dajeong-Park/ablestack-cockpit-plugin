@@ -34,6 +34,7 @@ def createArgumentParser():
     # 인자 추가: https://docs.python.org/ko/3/library/argparse.html#the-add-argument-method
     parser.add_argument('action', choices=['hostOnly','withScvm','withCcvm'], help='choose one of the actions')
     parser.add_argument('-t', '--type', metavar='[OS Type]', type=str, help='input Value to OS Type')
+    parser.add_argument('-is', '--iscsi-storage', metavar='[iSCSI Storage Check]', type=str, help='input Value to iSCSI Storage Use(True/False)')
     # output 민감도 추가(v갯수에 따라 output및 log가 많아짐):
     parser.add_argument('-v', '--verbose', action='count', default=0, help='increase output verbosity')
 
@@ -61,7 +62,7 @@ os_type = json_data["clusterConfig"]["type"]
 def changeHosts(args):
     try:
         # 호스트 파일 초기화
-        if args.type == "ablestack-vm":
+        if args.type == "ablestack-vm" or args.type == "ablestack-standalone":
 
             with open(hosts_file_path, "r") as file:
                 lines = file.readlines()
@@ -84,23 +85,25 @@ def changeHosts(args):
         for f_val in json_data["clusterConfig"]["hosts"]:
             json_ips = {}
             hostname_arry = []
-            if args.type == "PowerFlex":
-                # PowerFlex용 SCVM 호스트 파일
+            if args.type == "powerflex":
+                # powerflex용 SCVM 호스트 파일
                 my_hosts.remove_all_matching(address=f_val["ablecube"])
                 my_hosts.remove_all_matching(address=f_val["scvmMngt"])
                 my_hosts.remove_all_matching(address=f_val["ablecubePn"])
                 my_hosts.remove_all_matching(address=f_val["scvm"])
                 my_hosts.remove_all_matching(address=f_val["scvmCn"])
-                # PowerFlex용 SCVM 호스트 파일
+                # powerflex용 SCVM 호스트 파일
                 my_hosts.remove_all_matching(name=f_val["hostname"])
                 my_hosts.remove_all_matching(name="scvm"+f_val["index"])
                 my_hosts.remove_all_matching(name="pn-"+"ablecube"+f_val["index"])
                 my_hosts.remove_all_matching(name="pn-"+"scvm"+f_val["index"])
                 my_hosts.remove_all_matching(name="cn-"+"scvm"+f_val["index"])
 
-            elif args.type == "ablestack-vm":
+            elif args.type == "ablestack-vm" or args.type == "ablestack-standalone":
                 my_hosts.remove_all_matching(name=f_val["hostname"])
                 my_hosts.remove_all_matching(name=f_val["ablecube"])
+                if args.iscsi_storage == "true":
+                    my_hosts.remove_all_matching(name=f_val["ablecubePn"])
 
             else:
                 # hosts 파일 내용 ip로 제거
@@ -117,9 +120,8 @@ def changeHosts(args):
                 my_hosts.remove_all_matching(name="cn-"+"scvm"+f_val["index"])
 
             if hostname == f_val["hostname"]:
-
-                if args.type == "PowerFlex":
-                    # PowerFlex용 SCVM 호스트 파일
+                if args.type == "powerflex":
+                    # powerflex용 SCVM 호스트 파일
                     entry = HostsEntry(entry_type='ipv4', address=f_val["ablecube"], names=[f_val["hostname"], 'ablecube'])
                     my_hosts.add([entry])
                     entry = HostsEntry(entry_type='ipv4', address=f_val["scvmMngt"], names=["scvm"+f_val["index"], 'scvm'])
@@ -130,9 +132,12 @@ def changeHosts(args):
                     my_hosts.add([entry])
                     entry = HostsEntry(entry_type='ipv4', address=f_val["scvmCn"], names=["cn-"+"scvm"+f_val["index"], 'cn-scvm'])
                     my_hosts.add([entry])
-                elif args.type == "ablestack-vm":
+                elif args.type == "ablestack-vm" or args.type == "ablestack-standalone":
                     entry = HostsEntry(entry_type='ipv4', address=f_val["ablecube"], names=[f_val["hostname"], 'ablecube'])
                     my_hosts.add([entry])
+                    if args.iscsi_storage == "true":
+                        entry = HostsEntry(entry_type='ipv4', address=f_val["ablecubePn"], names=["pn-"+"ablecube"+f_val["index"], 'pn-ablecube'])
+                        my_hosts.add([entry])
                 else:
                     entry = HostsEntry(entry_type='ipv4', address=f_val["ablecube"], names=[f_val["hostname"], 'ablecube'])
                     my_hosts.add([entry])
@@ -146,8 +151,8 @@ def changeHosts(args):
                     my_hosts.add([entry])
 
             else:
-                if args.type == "PowerFlex":
-                    # PowerFlex용 SCVM 호스트 파일
+                if args.type == "powerflex":
+                    # powerflex용 SCVM 호스트 파일
                     entry = HostsEntry(entry_type='ipv4', address=f_val["ablecube"], names=[f_val["hostname"]])
                     my_hosts.add([entry])
                     entry = HostsEntry(entry_type='ipv4', address=f_val["scvmMngt"], names=["scvm"+f_val["index"]])
@@ -158,9 +163,12 @@ def changeHosts(args):
                     my_hosts.add([entry])
                     entry = HostsEntry(entry_type='ipv4', address=f_val["scvmCn"], names=["cn-"+"scvm"+f_val["index"]])
                     my_hosts.add([entry])
-                elif args.type == "ablestack-vm":
+                elif args.type == "ablestack-vm" or args.type == "ablestack-standalone":
                     entry = HostsEntry(entry_type='ipv4', address=f_val["ablecube"], names=[f_val["hostname"]])
                     my_hosts.add([entry])
+                    if args.iscsi_storage == "true":
+                        entry = HostsEntry(entry_type='ipv4', address=f_val["ablecubePn"], names=["pn-"+"ablecube"+f_val["index"]])
+                        my_hosts.add([entry])
                 else:
                     entry = HostsEntry(entry_type='ipv4', address=f_val["ablecube"], names=[f_val["hostname"]])
                     my_hosts.add([entry])
@@ -172,7 +180,6 @@ def changeHosts(args):
                     my_hosts.add([entry])
                     entry = HostsEntry(entry_type='ipv4', address=f_val["scvmCn"], names=["cn-"+"scvm"+f_val["index"]])
                     my_hosts.add([entry])
-
         my_hosts.write()
 
         python3(pluginpath+'/python/host/ssh-scan.py')
@@ -188,7 +195,7 @@ def hostOnly(args):
 
 def withScvm(args):
     ret = changeHosts(args)
-    if os_type == "ABLESTACK-HCI":
+    if os_type == "ablestack-hci":
         os.system("scp -q -o StrictHostKeyChecking=no " + hosts_file_path + " root@scvm-mngt:/etc/hosts")
     # os.system("scp -q "+ hosts_file_path +" root@scvm-mngt:/etc/hosts")
     return ret

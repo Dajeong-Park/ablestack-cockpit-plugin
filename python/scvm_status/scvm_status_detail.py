@@ -130,7 +130,7 @@ def statusDeteil():
                 rootDiskUsePer = "N/A"
 
             '''management Nic Gw정보 확인'''
-            if os_type == "PowerFlex":
+            if os_type == "powerflex":
                 output = check_output(["/usr/bin/ssh -o StrictHostKeyChecking=no scvm /usr/sbin/route -n | grep -P '^0.0.0.0' | awk '{print $2}'"], universal_newlines=True, shell=True, env=env)
             else:
                 output = check_output(["/usr/bin/ssh -o StrictHostKeyChecking=no scvm /usr/sbin/route -n | grep -P '^0.0.0.0|UG' | awk '{print $2}'"], universal_newlines=True, shell=True, env=env)
@@ -138,7 +138,7 @@ def statusDeteil():
             if manageNicGw == "" :
                 manageNicGw = "N/A"
 
-            output = check_output(["/usr/bin/ssh -o StrictHostKeyChecking=no scvm /usr/bin/cat -n /etc/resolv.conf | awk '$1 == 2 {print $3}'"], universal_newlines=True, shell=True, env=env)
+            output = check_output(["/usr/bin/ssh -o StrictHostKeyChecking=no scvm /usr/bin/cat -n /etc/resolv.conf | awk '$1 == 5 {print $3}'"], universal_newlines=True, shell=True, env=env)
             manageNicDns = output.strip()
             if manageNicDns == "":
                 manageNicDns = "N/A"
@@ -149,7 +149,7 @@ def statusDeteil():
             manageNicGw = 'N/A'
             manageNicDns = 'N/A'
         '''scvm 관리 nic 확인 시 리턴값 0이면 정상, 아니면 비정상'''
-        if os_type == "PowerFlex":
+        if os_type == "powerflex":
             rc = call(["grep 'scvm' /etc/hosts | grep -v 'pn' | grep -v 'cn' | grep -w scvm | awk '{print $1}'"], universal_newlines=True, shell=True, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
             if rc == 0:
                 output = check_output(["grep 'scvm' /etc/hosts | grep -v 'pn' | grep -v 'cn' | grep -w scvm | awk '{print $1}'"], universal_newlines=True, shell=True, env=env)
@@ -207,7 +207,7 @@ def statusDeteil():
         '''scvm 서버용 nic 확인 시 리턴값 0이면 정상, 아니면 비정상'''
         rc = call(["cat /etc/hosts | grep scvm$"], universal_newlines=True, shell=True, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
         if rc == 0:
-            if os_type == "PowerFlex":
+            if os_type == "powerflex":
                 output = check_output(["awk '$NF == \"pn-scvm\" {print $1}' /etc/hosts"], universal_newlines=True, shell=True, env=env)
             else:
                 output = check_output(["awk '$NF == \"scvm\" {print $1}' /etc/hosts"], universal_newlines=True, shell=True, env=env)

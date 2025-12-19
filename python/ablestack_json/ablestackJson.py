@@ -106,8 +106,12 @@ def jsonUpdate():
 def jsonAllUpdate():
     try:
         json_data = openAblestackJson()
-        if os_type != "ablestack-vm":
+        if os_type == "ablestack-hci":
             json_data["bootstrap"]["scvm"] = "true"
+        elif os_type == "powerflex":
+            json_data["bootstrap"]["pfmp"] = "true"
+        elif os_type == "ablestack-vm":
+            json_data["bootstrap"]["gfs_configure"] = "true"
 
         json_data["bootstrap"]["ccvm"] = "true"
         json_data["monitoring"]["wall"] = "true"
@@ -128,7 +132,9 @@ def jsonAllReset():
 
         json_data["bootstrap"]["scvm"] = "false"
         json_data["bootstrap"]["ccvm"] = "false"
+        json_data["bootstrap"]["pfmp"] = "false"
         json_data["monitoring"]["wall"] = "false"
+        json_data["bootstrap"]["gfs_configure"] = "false"
 
         with open(file_path, 'w') as outfile:
             json.dump(json_data, outfile, indent=4)

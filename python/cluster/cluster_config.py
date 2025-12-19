@@ -48,6 +48,7 @@ def createArgumentParser():
     parser.add_argument('-rh', '--remove-hostname', metavar='[Hostnames to remove configuration in cluster]', type=str, help='input Value to remove hostname')
     parser.add_argument('-ets', '--extenal-timeserver', metavar='[Extenal Timeserver]', type=str, help='input Value to Extenal Timeserver')
     parser.add_argument('-ti', '--target-ip', metavar='[Remove Target Host IP Address]', type=str, help="input Value to remove target host ip address")
+    parser.add_argument('-is', '--iscsi-storage', metavar='[iSCSI Storage Check]', type=str, help='input Value to iSCSI Storage Use(True/False)')
 
     # output 민감도 추가(v갯수에 따라 output및 log가 많아짐):
     parser.add_argument('-v', '--verbose', action='count', default=0, help='increase output verbosity')
@@ -77,14 +78,39 @@ os_type = json_data["clusterConfig"]["type"]
 def insert(args):
     try:
         # Network Filter 적용
-        subprocess.run(["virsh", "nwfilter-define", "--file", "/usr/local/sbin/nwfilter-allow-all.xml"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        subprocess.run(["modprobe", "br_netfilter"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        with open("/etc/sysctl.conf", "a") as sysctl_file:
-            sysctl_file.write("\nnet.bridge.bridge-nf-call-arptables=1")
-            sysctl_file.write("\nnet.bridge.bridge-nf-call-iptables=1")
-            sysctl_file.write("\nnet.bridge.bridge-nf-call-ip6tables=1")
+        # 1. virsh nwfilter 확인 후 정의
+        openvswitch_service_check = os.system("systemctl is-active openvswitch > /dev/null")
+        if openvswitch_service_check != 0:
+            result = subprocess.run(["virsh", "nwfilter-list"], capture_output=True, text=True)
+            if "allow-all" not in result.stdout:
+                subprocess.run(["virsh", "nwfilter-define", "--file", "/usr/local/sbin/nwfilter-allow-all.xml"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
-        subprocess.run(["sysctl", "-p"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            # 2. br_netfilter 모듈이 로드되지 않았으면 로드
+            lsmod_result = subprocess.run(["lsmod"], capture_output=True, text=True)
+            if "br_netfilter" not in lsmod_result.stdout:
+                subprocess.run(["modprobe", "br_netfilter"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+            # 3. sysctl.conf에 설정이 없을 때만 추가
+            settings = [
+                "net.bridge.bridge-nf-call-arptables=1",
+                "net.bridge.bridge-nf-call-iptables=1",
+                "net.bridge.bridge-nf-call-ip6tables=1"
+            ]
+
+            try:
+                with open("/etc/sysctl.conf", "r") as f:
+                    existing_lines = f.read()
+            except FileNotFoundError:
+                existing_lines = ""
+
+            # net.bridge.bridge* 의 key가 없을 경우에만 추가
+            with open("/etc/sysctl.conf", "a") as sysctl_file:
+                for setting in settings:
+                    key = setting.split("=")[0]
+                    if key not in existing_lines:
+                        sysctl_file.write(f"\n{setting}")
+
+            subprocess.run(["sysctl", "-p"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     # 수정할 cluster.json 파일 읽어오
         # 기존 file json 데이터를 param 데이터로 교체
@@ -95,7 +121,7 @@ def insert(args):
         if args.extenal_timeserver is not None:
             json_data["clusterConfig"]["extenal_timeserver"] = args.extenal_timeserver
 
-        if args.type == "ablestack-vm":
+        if args.type == "ablestack-vm" or args.type == "ablestack-standalone":
             if args.pcs_cluster_list is not None:
                     for i in range(len(args.pcs_cluster_list)):
                         if args.pcs_cluster_list[i] is not None:
@@ -122,15 +148,31 @@ def insert(args):
                             f_val["index"] = p_val["index"]
                             f_val["hostname"] = p_val["hostname"]
                             f_val["ablecube"] = p_val["ablecube"]
-                            not_matching = False
+                            if args.iscsi_storage is not None:
+                                if args.iscsi_storage == "true":
+                                    f_val["ablecubePn"] = p_val["ablecubePn"]
+                                not_matching = False
 
                     # 한번도 매칭되지 않은 param_json을 file json데이터에 appen
-                    if not_matching:
-                        json_data["clusterConfig"]["hosts"].append({
-                            "index": p_val["index"],
-                            "hostname": p_val["hostname"],
-                            "ablecube": p_val["ablecube"],
-                        })
+                    if args.iscsi_storage is not None:
+                        if args.iscsi_storage == "false":
+                            if not_matching:
+                                json_data["clusterConfig"]["hosts"].append({
+                                    "index": p_val["index"],
+                                    "hostname": p_val["hostname"],
+                                    "ablecube": p_val["ablecube"]
+                                })
+                        else:
+                            if not_matching:
+                                json_data["clusterConfig"]["hosts"].append({
+                                    "index": p_val["index"],
+                                    "hostname": p_val["hostname"],
+                                    "ablecube": p_val["ablecube"],
+                                    "ablecubePn": p_val["ablecubePn"]
+                                })
+            if args.iscsi_storage is not None:
+                json_data["clusterConfig"]["iscsi_storage"] = args.iscsi_storage
+
         else :
             if args.pcs_cluster_list is not None:
                     for i in range(len(args.pcs_cluster_list)):
@@ -179,10 +221,19 @@ def insert(args):
         with open(json_file_path, "w") as cluster_json:
             cluster_json.write(json.dumps(json_data, indent=4))
 
+        # 스토리지 연결이 끊겼을 경우 shutdown 하는 서비스 설정
+        if args.type == "ablestack-vm" or args.type == "powerflex":
+            os.system("systemctl enable --now auto-umount.timer")
+        elif args.type == "ablestack-hci":
+            os.system("systemctl enable --now cleanup-rbd.timer")
+
         # hosts 파일 복사 실패시 3번 시도까지 하도록 개선
         result = {}
         for i in [1,2,3]:
-            result = json.loads(python3(pluginpath + '/python/cluster/cluster_hosts_setting.py', args.copy_option, "-t", args.type))
+            if args.iscsi_storage is not None:
+                result = json.loads(python3(pluginpath + '/python/cluster/cluster_hosts_setting.py', args.copy_option, "-t", args.type, "-is", args.iscsi_storage))
+            else:
+                result = json.loads(python3(pluginpath + '/python/cluster/cluster_hosts_setting.py', args.copy_option, "-t", args.type))
             if result["code"] == 200:
                 break
 
@@ -201,6 +252,7 @@ def insert(args):
 def insertScvmHost(args):
     return_val = "The ping test failed. Check ablecube hosts and scvms network IPs."
     try:
+
         if args.json_string is not None:
             # 파라미터로 받아온 json으로 변환
             param_json = json.loads(args.json_string)
@@ -211,6 +263,7 @@ def insertScvmHost(args):
                 ping_check_list.append(p_val1["ablecube"])
                 ping_check_list.append(p_val1["scvmMngt"])
 
+
             ping_result = json.loads(python3(pluginpath+'/python/vm/host_ping_test.py', '-hns', ping_check_list))
 
             if ping_result["code"] == 200:
@@ -218,6 +271,7 @@ def insertScvmHost(args):
                 return_val = "Command execution test failed. Check the ablecube hosts and scvms status."
 
                 for p_val2 in param_json:
+
                     ret = ssh('-o', 'StrictHostKeyChecking=no', '-o', 'ConnectTimeout=5', p_val2["ablecube"], "echo ok").strip()
                     if ret != "ok":
                         return createReturn(code=500, val=return_val + " : " + p_val2["ablecube"])
@@ -227,9 +281,10 @@ def insertScvmHost(args):
                         return createReturn(code=500, val=return_val + " : " + p_val2["scvmMngt"])
 
                 # 원격 ablecube 호스트 및 scvm의 hosts 정보를 수정하는 명령 수행
-                if os_type != "PowerFlex":
+                if os_type != "powerflex":
                     return_val = "insertScvmHost Failed to modify cluster_config.py and hosts file."
                     for p_val3 in param_json:
+
                         cmd_str = "python3 /usr/share/cockpit/ablestack/python/cluster/cluster_config.py insert"
                         cmd_str += " -js '" + args.json_string + "'"
                         cmd_str += " -co withScvm"
@@ -238,10 +293,8 @@ def insertScvmHost(args):
                         pcs_list = " ".join(args.pcs_cluster_list)
 
                         ret = ssh('-o', 'StrictHostKeyChecking=no', p_val3["ablecube"], cmd_str, " -cmi "+args.ccvm_mngt_ip, " -pcl "+pcs_list)
-
                         if json.loads(ret)["code"] != 200:
                             return createReturn(code=500, val=return_val + " : " + p_val3["ablecube"])
-
                 #모든 작업이 수행 완료되면 성공결과 return
                 return createReturn(code=200, val="Cluster Config insertScvmHost Success")
             else:
@@ -264,7 +317,7 @@ def insertAllHost(args):
             ping_check_list = []
             for p_val1 in param_json:
                 ping_check_list.append(p_val1["ablecube"])
-                if args.type != "ablestack-vm":
+                if args.type == "ablestack-hci":
                     if args.exclude_hostname != p_val1["hostname"]:
                         ping_check_list.append(p_val1["scvmMngt"])
 
@@ -281,8 +334,11 @@ def insertAllHost(args):
                         return createReturn(code=500, val=return_val + " : " + p_val2["ablecube"])
                     os.system("touch /var/lib/libvirt/images/ccvm-cloudinit.iso")
                     os.system("chmod 777 /var/lib/libvirt/images/ccvm-cloudinit.iso")
+                    # 추가 호스트인 경우 tpm.properties, uefi.properties 파일도 복사
+                    os.system("scp /etc/cloudstack/agent/tpm.properties "+p_val2["ablecube"]+":/etc/cloudstack/agent/tpm.properties")
+                    os.system("scp /etc/cloudstack/agent/uefi.properties "+p_val2["ablecube"]+":/etc/cloudstack/agent/uefi.properties")
                     # 호스트 추가시 클러스터 구성단계에서는 scvm이 배포되기 전이므로 해당 scvm에 echo 테스트 명령을 수행할 수 없음
-                    if args.type != "ablestack-vm":
+                    if args.type == "ablestack-hci":
                         if args.exclude_hostname != p_val2["hostname"]:
                             ret = ssh('-o', 'StrictHostKeyChecking=no', '-o', 'ConnectTimeout=5', p_val2["scvmMngt"], "echo ok").strip()
                             if ret != "ok":
@@ -310,13 +366,14 @@ def insertAllHost(args):
                     if args.extenal_timeserver is not None:
                         cmd_str += " -ets "+args.extenal_timeserver
 
-                    if args.type != "ablestack-vm":
+                    if args.type == "ablestack-hci":
                         if args.exclude_hostname != p_val3["hostname"]:
                             cmd_str += " -co withScvm"
                         else:
                             cmd_str += " -co withCcvm"
                     else:
                         cmd_str += " -co withCcvm"
+                        cmd_str += " -is " + args.iscsi_storage
 
                     pcs_list = " ".join(args.pcs_cluster_list)
                     ret = ssh('-o', 'StrictHostKeyChecking=no', p_val3["ablecube"], cmd_str, " -cmi "+args.ccvm_mngt_ip, " -pcl "+pcs_list)
@@ -395,6 +452,7 @@ def reset_cluster_config():
     for i in range(len(clusterConfig["pcsCluster"])):
         clusterConfig["pcsCluster"]["hostname"+str(i+1)] = ""
     clusterConfig["hosts"] = []
+    clusterConfig["iscsi_storage"] = "false"
 
     with open(json_file_path, "w", encoding="utf-8") as file:
         json.dump(json_data, file, indent=4)
@@ -494,7 +552,7 @@ if __name__ == '__main__':
 
     # 실제 로직 부분 호출 및 결과 출력
     if args.action == 'insert':
-        if os_type == "ablestack-vm":
+        if os_type == "ablestack-vm" or os_type == "ablestack-standalone":
             reset_cluster_config()
         ret = insert(args)
         print(ret)

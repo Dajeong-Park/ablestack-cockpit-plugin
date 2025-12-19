@@ -23,12 +23,25 @@ env=os.environ.copy()
 env['LANG']="en_US.utf-8"
 env['LANGUAGE']="en"
 
+cluster_json_file_path = pluginpath + "/tools/properties/cluster.json"
 '''
 입력된 argument를 파싱하여 dictionary 처럼 사용하게 만들어 주는 parser를 생성하는 함수
 Parameter: None
 참조: https://docs.python.org/ko/3/library/argparse.html
 :return: argparse.ArgumentParser
 '''
+def openClusterJson():
+    try:
+        with open(cluster_json_file_path, 'r') as json_file:
+            ret = json.load(json_file)
+    except Exception as e:
+        ret = createReturn(code=500, val='cluster.json read error')
+        print ('EXCEPTION : ',e)
+
+    return ret
+
+cluster_json_data = openClusterJson()
+os_type = cluster_json_data["clusterConfig"]["type"]
 def createArgumentParser():
     # 프로그램 설명
     tmp_parser = argparse.ArgumentParser(description='VM의 CPU와 Memory를 변경하는 프로그램',
@@ -41,7 +54,7 @@ def createArgumentParser():
     tmp_parser.add_argument('--cpu', help="Number of vCPU")
     tmp_parser.add_argument('--memory', help="Size of Memory")
     tmp_parser.add_argument('--xml', help="xml file path")
-    
+
 
     # output 민감도 추가(v갯수에 따라 output및 log가 많아짐)
     tmp_parser.add_argument("-v", "--verbose", action='count', default=0,
@@ -65,8 +78,13 @@ Parameter: memory: int memory용량(GiB)
 Parameter: xml: str xml파일의 경로
 :return: json
 '''
-def editVMOffering(cpu, memory, xml='/usr/share/cockpit/ablestack/tools/vmconfig/ccvm/ccvm.xml', H=False):
+def editVMOffering(cpu, memory, H=False):
     soup = ""
+
+    if os_type == 'ablestack-vm':
+        xml = '/mnt/glue-gfs/ccvm.xml'
+    else :
+         xml = '/usr/share/cockpit/ablestack/tools/vmconfig/ccvm/ccvm.xml'
     with open(xml, 'rt') as fp:
         soup = bs4.BeautifulSoup(fp, features='xml')
     cpuitem = soup.select_one('vcpu')
@@ -112,4 +130,4 @@ if __name__ == '__main__':
 
     # 실제 로직 부분 호출 및 결과 출력
     if args.action == 'edit':
-        print(editVMOffering(cpu=args.cpu, memory=args.memory, xml=args.xml, H=args.H))
+        print(editVMOffering(cpu=args.cpu, memory=args.memory, H=args.H))

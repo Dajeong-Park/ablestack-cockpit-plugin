@@ -65,6 +65,17 @@ def deactiveBackup(checkOption):
             subprocess.run("ssh root@ccvm sed -i '/RegularBackup/d' /var/spool/cron/root 2> /dev/null", universal_newlines=True, shell=True, env=env)
             subprocess.check_output("ssh root@ccvm \"crontab -u root -l | grep -Ev 'mysqldump.*ccvm_dump_|ccvm_dump_.*mysqldump' | crontab -u root -\"", universal_newlines=True, shell=True, env=env)
 
+            try:
+                subprocess.check_output(
+                    "ssh root@ccvm \"grep -lrEZ 'mysqldump.*ccvm_dump' /var/spool/at 2>/dev/null | xargs -0 rm -f\"",
+                    universal_newlines=True,
+                    shell=True,
+                    env=env
+                )
+                print("[deactiveBackup] at queue cleanup for ccvm_dump completed")
+            except subprocess.CalledProcessError as e:
+                print("[deactiveBackup] at queue cleanup failed:", e)
+
         elif checkOption == 'd':
             subprocess.check_output("ssh root@ccvm \"grep -lrEZ 'ccvm_dump.*delete' /var/spool/at/ | xargs -0 rm -f\"", universal_newlines=True, shell=True, env=env)
             subprocess.run("ssh root@ccvm sed -i '/DeleteOldBackup/d' /var/spool/cron/root 2> /dev/null", universal_newlines=True, shell=True, env=env)

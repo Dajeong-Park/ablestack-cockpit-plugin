@@ -122,7 +122,7 @@ def createScvmXml(args):
         br_num = 0
         openvswitch_service_check = os.system("systemctl is-active openvswitch > /dev/null")
         # 생성할 가상머신 xml 템플릿
-        if os_type == "PowerFlex":
+        if os_type == "powerflex":
             os.system("/usr/bin/cp -f "+pluginpath+"/tools/xml-template/powerflex-scvm-xml-template.xml "+pluginpath+"/tools/vmconfig/scvm/scvm-temp.xml")
         else:
             os.system("/usr/bin/cp -f "+pluginpath+"/tools/xml-template/scvm-xml-template.xml "+pluginpath+"/tools/vmconfig/scvm/scvm-temp.xml")
@@ -352,6 +352,13 @@ def createScvmXml(args):
 
         # 폴더 권한 수정
         os.system("chmod 755 -R "+pluginpath+"/tools/vmconfig/scvm")
+
+        # ablestack-template_VARS.fd 파일 SCVM용으로 복사
+        # 대상 파일이 없을 때만 복사합니다(있으면 아무 것도 하지 않음)입니다.
+        # os.system(
+        #     "test -e /var/lib/libvirt/qemu/nvram/ablestack-template-scvm_VARS.fd"
+        #     " || cp -f /var/lib/libvirt/qemu/nvram/ablestack-template_VARS.fd"
+        #     " /var/lib/libvirt/qemu/nvram/ablestack-template-scvm_VARS.fd")
 
         # 결과값 리턴
         return createReturn(code=200, val={})

@@ -18,7 +18,7 @@ from ablestack import *
 # 함수명 : createArgumentParser
 # 주요 기능 : 입력된 argument를 파싱하여 dictionary 처럼 사용하게 만들어 주는 parser 생성
 def createArgumentParser():
-   
+
     parser = argparse.ArgumentParser(description='클라우드센터 가상머신의 서비스를 제어하는 프로그램',
                                          epilog='copyrightⓒ 2021 All rights reserved by ABLECLOUD™')
 
@@ -49,9 +49,9 @@ if __name__ == '__main__':
     parser = createArgumentParser()
     args = parser.parse_args()
     verbose = (5 - args.verbose) * 10
-    
+
     # 로깅을 위한 logger 생성, 모든 인자에 default 인자가 있음.
     logger = createLogger(verbosity=logging.CRITICAL, file_log_level=logging.ERROR, log_file='test.log')
-   
+
     # 실제 로직 부분 호출 및 결과 출력
     print(serviceControl(args))

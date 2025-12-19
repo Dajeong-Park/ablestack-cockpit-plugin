@@ -1,153 +1,145 @@
-'''
-Copyright (c) 2024 ABLECLOUD Co. Ltd
-설명 : ccvm secondary 용량을 추가하는 기능
-최초 작성일 : 2024. 9. 3
-'''
-
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+"""
+Copyright (c) 2024 ABLECLOUD Co. Ltd
+설명 : CCVM secondary 용량을 추가하는 기능
+최초 작성일 : 2024. 9. 3
+개선 사항 : 타임아웃/상태 체크/명령 실행 일원화 및 안정성 보강
+"""
 
 import argparse
-import logging
-import sys
-import os
 import json
-import datetime
+import os
 import subprocess
 import time
-import sh
+from ablestack import *  # createReturn, pluginpath 등 제공 가정
 
-from subprocess import check_output
-from ablestack import *
-from sh import python3
-from sh import ssh
+SLEEP_SEC = 5
+TIMEOUT_SEC = 600
+JSON_PATH = os.path.join(pluginpath, "tools", "properties", "cluster.json")
 
+ENV = os.environ.copy()
+ENV["LANG"] = "en_US.utf-8"
+ENV["LANGUAGE"] = "en"
 
-env=os.environ.copy()
-env['LANG']="en_US.utf-8"
-env['LANGUAGE']="en"
+def run(cmd, check=True, capture=True, text=True, shell=False):
+    """subprocess.run 래퍼: 기본 리스트 인자 + shell=False"""
+    return subprocess.run(cmd, check=check, capture_output=capture, text=text, shell=shell, env=ENV)
 
-def createArgumentParser():
-    '''
-    입력된 argument를 파싱하여 dictionary 처럼 사용하게 만들어 주는 parser를 생성하는 함수
-    :return: argparse.ArgumentParser
-    '''
-    # 참조: https://docs.python.org/ko/3/library/argparse.html
-    # 프로그램 설명
-    parser = argparse.ArgumentParser(description='ccvm secondary 용량을 추가하는 프로그램',
-                                        epilog='copyrightⓒ 2021 All rights reserved by ABLECLOUD™',
-                                        usage='%(prog)s arguments')
+def wait_until(predicate, timeout_sec=TIMEOUT_SEC, interval_sec=SLEEP_SEC):
+    """predicate()가 True가 될 때까지 대기"""
+    deadline = time.monotonic() + timeout_sec
+    while time.monotonic() < deadline:
+        try:
+            if predicate():
+                return True
+        except Exception:
+            pass
+        time.sleep(interval_sec)
+    return False
 
-    # 인자 추가: https://docs.python.org/ko/3/library/argparse.html#the-add-argument-method
+def open_cluster_json():
+    """클러스터 JSON 로드(실패 시 에러 리턴)"""
+    try:
+        with open(JSON_PATH, "r") as jf:
+            return json.load(jf)
+    except Exception as e:
+        return createReturn(code=500, val=f"cluster.json read error: {e}")
 
-    parser.add_argument('--add-size', metavar='Additional capacity size', type=int, help='Additional capacity size',required=True)
+def is_ccvm_ssh_ok():
+    """CCVM SSH 가능 여부"""
+    rc = os.system("ssh -q -o StrictHostKeyChecking=no -o ConnectTimeout=5 ccvm 'echo ok' >/dev/null 2>&1")
+    return rc == 0
 
-    # output 민감도 추가(v갯수에 따라 output및 log가 많아짐):
-    parser.add_argument('-v', '--verbose', action='count', default=0, help='increase output verbosity')
-    
-    # flag 추가(샘플임, 테스트용으로 json이 아닌 plain text로 출력하는 플래그 역할)
-    parser.add_argument('-H', '--Human', action='store_const', dest='flag_readerble', const=True, help='Human readable')
-    
-    # Version 추가
-    parser.add_argument('-V', '--Version', action='version', version='%(prog)s 1.0')
+def virsh_state(domain_name):
+    """libvirt 도메인 상태 조회"""
+    cp = run(["virsh", "domstate", domain_name], check=False)
+    return (cp.stdout or "").strip().lower()
 
+def create_argument_parser():
+    """인자 파서"""
+    parser = argparse.ArgumentParser(description="ccvm secondary 용량을 추가하는 프로그램",
+                                     epilog="copyrightⓒ 2021 All rights reserved by ABLECLOUD™",
+                                     usage="%(prog)s arguments")
+    parser.add_argument("--add-size", metavar="Additional capacity size", type=int, required=True,
+                        help="추가할 용량(GiB), 1~500")
+    parser.add_argument("-v", "--verbose", action="count", default=0, help="increase output verbosity")
+    parser.add_argument("-H", "--Human", action="store_const", dest="flag_readerble", const=True, help="Human readable")
+    parser.add_argument("-V", "--Version", action="version", version="%(prog)s 1.0")
     return parser
 
-def processFail(message):
-    return createReturn(code=500, val=message)
-
-def ccvmSecondaryResize(args):
+def ccvm_secondary_resize(args):
     try:
-        # 이미지 사이즈 입력 범위 체크
         if args.add_size < 1 or args.add_size > 500:
-            return createReturn(code=500, val="Please enter additional capacity size less than 500 GiB.")
+            return createReturn(code=500, val="Please enter additional capacity size between 1 and 500 GiB.")
+        cfg = open_cluster_json()
+        if isinstance(cfg, dict) and "code" in cfg and cfg.get("code") != 200:
+            return cfg
+        os_type = cfg["clusterConfig"]["type"]
 
-        ccvm_image_info = json.loads(subprocess.check_output("rbd info rbd/ccvm --format json", shell=True).strip())
-        original_image_size = ccvm_image_info["size"]/1024/1024/1024
-        new_image_size = original_image_size + args.add_size
-        if new_image_size > 2000:
-            return createReturn(code=500, val="CCVM can support capacities up to 2TiB.")
+        rbd_image = "rbd/ccvm"
+        if os_type == "ablestack-hci":
+            info = run(["rbd", "info", rbd_image, "--format", "json"], check=True)
+            ccvm_info = json.loads(info.stdout)
+            original_gib = ccvm_info["size"] / (1024 ** 3)
+            new_image_size = original_gib + args.add_size
+            if new_image_size > 2000:
+                return createReturn(code=500, val="CCVM can support capacities up to 2 TiB.")
 
-        # ccvm 정상 실행중인지 체크
-        ccvm_boot_check = os.system("ssh -q -o StrictHostKeyChecking=no -o ConnectTimeout=1 ccvm 'echo ok > /dev/null 2>&1'")
-        if ccvm_boot_check != 0:
-            return createReturn(code=500, val="Please check if CCVM status is running normally.")
-        ret = ssh('-o', 'StrictHostKeyChecking=no', '-o', 'ConnectTimeout=5', "ccvm", "echo ok").strip()
-        if ret != "ok":
-            return createReturn(code=500, val="Please check if CCVM status is running normally.")
+        if os_type in ("ablestack-hci", "ablestack-vm"):
+            if not is_ccvm_ssh_ok():
+                return createReturn(code=500, val="Please check if CCVM status is running normally.")
+            resp = run(["/usr/bin/python3", f"{pluginpath}/python/pcs/main.py", "disable", "--resource", "cloudcenter_res"], check=True)
+            resp_json = json.loads((resp.stdout or "").strip() or "{}")
+            if resp_json.get("code") != 200:
+                return createReturn(code=500, val="cloudcenter_res disable failed.")
+            def is_stopped():
+                st = run(["/usr/bin/python3", f"{pluginpath}/python/pcs/main.py", "status", "--resource", "cloudcenter_res"], check=True)
+                st_json = json.loads((st.stdout or "").strip() or "{}")
+                return st_json.get("val", {}).get("role") == "Stopped"
+            if not wait_until(is_stopped, timeout_sec=TIMEOUT_SEC):
+                return createReturn(code=500, val="cloudcenter_res stop timeout. Please check.")
+            if os_type == "ablestack-vm":
+                ccvm_file = "/mnt/glue-gfs/ccvm.qcow2"
+                run(["qemu-img", "resize", ccvm_file, f"+{args.add_size}G"])
 
-        # pcs 명령 수행 호스트 확인
-        ret = json.loads(python3(pluginpath + '/python/pcs/pcsExehost.py' ))
-        pcs_exe_ip = ret["val"]
+        elif os_type == "ablestack-standalone":
+            ccvm_file = "/var/lib/libvirt/images/ccvm.qcow2"
+            run(["virsh", "shutdown", "ccvm"], check=False)
+            if not wait_until(lambda: virsh_state("ccvm") == "shut off", timeout_sec=TIMEOUT_SEC):
+                return createReturn(code=500, val="CCVM shutdown timeout. Please check.")
+            run(["qemu-img", "resize", ccvm_file, f"+{args.add_size}G"])
+            run(["virsh", "start", "ccvm"])
 
-        # pcs cloudcenter_res disable 명령 
-        ret = json.loads(sh.python3(pluginpath + "/python/pcs/main.py", "disable", "--resource", "cloudcenter_res").strip())
-        if ret["code"] != 200:
-            return createReturn(code=500, val="cloudcenter_res disable failed.")
+        if os_type == "ablestack-hci":
+            if run(["rbd", "snap", "purge", rbd_image, "--no-progress"], check=False).returncode != 0:
+                return createReturn(code=500, val="CCVM snapshot purge failed.")
+            if run(["rbd", "resize", "-s", f"{int(new_image_size)}G", rbd_image], check=False).returncode != 0:
+                return createReturn(code=500, val="CCVM image resize failed.")
 
-        # 완전 정지 되었는지 확인 (최대 10분간)
-        cnt_num = 0
-        while True:
-            time.sleep(5)
-            cnt_num += 1
-            ret = json.loads(sh.python3(pluginpath + "/python/pcs/main.py", "status", "--resource", "cloudcenter_res").strip())
-            if ret['val']['role'] == 'Stopped':
-                break
-            if cnt_num > 600:
-                return createReturn(code=500, val="cloudcenter_res is not stopped. Please check.")
+        if os_type in ("ablestack-hci", "ablestack-vm"):
+            resp = run(["/usr/bin/python3", f"{pluginpath}/python/pcs/main.py", "enable", "--resource", "cloudcenter_res"], check=True)
+            resp_json = json.loads((resp.stdout or "").strip() or "{}")
+            if resp_json.get("code") != 200:
+                return createReturn(code=500, val="cloudcenter_res enable failed.")
 
-        # rbd snap purge ccvm
-        result = os.system("rbd snap purge ccvm --no-progress")
-        if result != 0:
-            return createReturn(code=500, val="CCVM Snapshot Purge Failed")
+        if not wait_until(is_ccvm_ssh_ok, timeout_sec=TIMEOUT_SEC):
+            return createReturn(code=500, val="CCVM SSH not available after start. Please check.")
 
-        # ccvm image resize
-        result = os.system("rbd resize -s "+str(int(new_image_size))+"G ccvm > /dev/null 2>&1")
-        if result != 0:
-            return createReturn(code=500, val="CCVM Image Resize Failed")
-
-        # pcs cloudcenter_res enable 명령 
-        ret = json.loads(sh.python3(pluginpath + "/python/pcs/main.py", "enable", "--resource", "cloudcenter_res").strip())
-        if ret["code"] != 200:
-            return createReturn(code=500, val="cloudcenter_res enable failed.")
-
-        # ccvm이 명령 수행 가능한지 확인 (최대 10분간)
-        ccvm_boot_check = 0
-        cnt_num = 0
-        while True:
-            time.sleep(5)
-            cnt_num += 1
-            ccvm_boot_check = os.system("ssh -q -o StrictHostKeyChecking=no -o ConnectTimeout=1 ccvm 'echo ok > /dev/null 2>&1'")
-            if ccvm_boot_check == 0 or cnt_num > 600:
-                break
-
-        # ccvm secondary fs (nfs) 용량 확장
-        cmd = "sgdisk -e /dev/vda > /dev/null 2>&1"
-        cmd += " && parted --script /dev/vda resizepart 3 100% > /dev/null 2>&1"
-        cmd += " && pvresize /dev/vda3 > /dev/null 2>&1"
-        cmd += " && lvextend -l +100%FREE /dev/rl/nfs > /dev/null 2>&1"
-        cmd += " && xfs_growfs /nfs > /dev/null 2>&1"
-
-        result = os.system("ssh -q -o StrictHostKeyChecking=no -o ConnectTimeout=5 ccvm '"+cmd+"'")
-        if result != 0:
-            return createReturn(code=500, val="ccvm secondary fs capacity expansion failed")
-        # 2차 스토리지 사이즈 확장 완료
-        return createReturn(code=200, val="ccvm secondary fs capacity expansion success")
+        grow_cmd = ("sgdisk -e /dev/vda >/dev/null 2>&1"
+                    " && parted --script /dev/vda resizepart 3 100% >/dev/null 2>&1"
+                    " && pvresize /dev/vda3 >/dev/null 2>&1"
+                    " && lvextend -l +100%FREE /dev/rl/nfs >/dev/null 2>&1"
+                    " && xfs_growfs /nfs >/dev/null 2>&1")
+        rc = os.system(f"ssh -q -o StrictHostKeyChecking=no -o ConnectTimeout=10 ccvm '{grow_cmd}'")
+        if rc != 0:
+            return createReturn(code=500, val="CCVM secondary filesystem expansion failed.")
+        return createReturn(code=200, val="CCVM secondary filesystem expansion success.")
     except Exception as e:
-        # 결과값 리턴
-        return createReturn(code=500, val=e)
+        return createReturn(code=500, val=str(e))
 
-# Press the green button in the gutter to run the script.
-if __name__ == '__main__':
-    # parser 생성
-    parser = createArgumentParser()
-    # input 파싱
+if __name__ == "__main__":
+    parser = create_argument_parser()
     args = parser.parse_args()
-
-    verbose = (5 - args.verbose) * 10
-
-    # 로깅을 위한 logger 생성, 모든 인자에 default 인자가 있음.
-    logger = createLogger(verbosity=logging.CRITICAL, file_log_level=logging.ERROR, log_file='ccvm_snap.log')
-
-    # 실제 로직 부분 호출 및 결과 출력
-    print(ccvmSecondaryResize(args))
+    result = ccvm_secondary_resize(args)
+    print(result)

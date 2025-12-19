@@ -31,7 +31,7 @@ $('#button-auto-shutdown').on('click', async function(){
 
     createLoggerInfo("button-auto-shutdown click");
     var cmd = $('#auto-shutdown-cmd').val();
-    
+
     // // 6. Mount 해제 여부를 체크
     // $('#dropdown-menu-cloud-cluster-status').toggle();
     // $('#div-modal-spinner-header-txt').text('Mount 해제 여부를 체크를 하고 있습니다.');
@@ -40,7 +40,7 @@ $('#button-auto-shutdown').on('click', async function(){
     // .then(function(data){
     //     var retVal = JSON.parse(data);
     //     if(retVal.code == 200){
-    //         console.log("Mount 체크 성공"); 
+    //         console.log("Mount 체크 성공");
             // 7.	클라우드센터 가상머신 정지
             $('#dropdown-menu-cloud-cluster-status').toggle();
             $('#div-modal-spinner-header-txt').text('클라우드센터VM을 정지하고 있습니다.');
@@ -53,13 +53,13 @@ $('#button-auto-shutdown').on('click', async function(){
                     $('#card-action-cloud-vm-change').attr('disabled', false);
                     $('#button-cloud-vm-snap-rollback').attr('disabled', false);
                     createLoggerInfo("cloud vm stop success");
-                    console.log("클라우드센터VM을 정지하고 있습니다."); 
+                    console.log("클라우드센터VM을 정지하고 있습니다.");
                     //8.	스토리지센터 클러스터 유지보수 모드 설정
                     // 변경 버튼 클릭 이벤트
                     $('#div-modal-spinner-header-txt').text('스토리지 클러스터 유지보수모드 변경중입니다.');
                     createLoggerInfo("scc-maintenance-update set");
                     cockpit.spawn(["python3", pluginpath+"/python/scc_status/scc_status_update.py", "set_noout" ], { host: pcs_exe_host})
-                    .then(function(data){            
+                    .then(function(data){
                         var retVal = JSON.parse(data);
                         if(retVal.code == "200"){
                             sessionStorage.setItem("storage_cluster_maintenance_status", "true"); //유지보수모드 해제 요청 후 세션스토리지에 상태값 재세팅
@@ -77,7 +77,7 @@ $('#button-auto-shutdown').on('click', async function(){
                                     createLoggerInfo("host_shutdown");
                                     console.log("호스트 종료 중입니다.")
                                     cockpit.spawn(["/usr/bin/python3", pluginpath+"/python/host/auto-shutdown.py","shutdown_hosts"])
-                                    .then(function(data){  
+                                    .then(function(data){
                                         console.log(data);
                                         location.reload();
                                         $('#div-modal-spinner').hide();
@@ -88,12 +88,12 @@ $('#button-auto-shutdown').on('click', async function(){
                                         failedAutoShutdown();
                                         createLoggerInfo(":::shutdown Error:::");
                                         console.log(":::shutdown Error::: "+data);
-                                    });        
+                                    });
 
                                 }else{
                                     $('#div-modal-spinner-header-txt').text('스토리지센터 가상머신 종료 오류');
                                     createLoggerInfo(":::scvm stop Error:::");
-                                    console.log(":::scvm stop Error::: " + data);         
+                                    console.log(":::scvm stop Error::: " + data);
                                 }
                             })
                             .catch(function(data){
@@ -101,8 +101,8 @@ $('#button-auto-shutdown').on('click', async function(){
                                 $('#modal-description-auto-shutdown').html("<p>스토리지센터 가상머신 종료 오류로 중단되었습니다.</p>");
                                 failedAutoShutdown();
                                 createLoggerInfo(":::scvm stop Error:::");
-                                console.log(":::scvm stop Error::: " + data);            
-                            });    
+                                console.log(":::scvm stop Error::: " + data);
+                            });
                             $('#scvm-status-update-cmd').val("");
                         }else{
                             $('#div-modal-spinner-header-txt').text('스토리지센터 클러스터 유지보수 모드 설정 오류');

@@ -28,7 +28,7 @@ def get_license_status():
 
         # 라이센스 디렉토리 경로
         license_dir = f"/usr/share/{host_uuid}"
-        
+
         # 디렉토리가 없거나 비어있는 경우
         if not os.path.exists(license_dir) or not os.listdir(license_dir):
             return {'code': '404', 'val': '등록된 라이센스가 없습니다.'}
@@ -78,20 +78,30 @@ def get_license_status():
             # AES 복호화
             cipher = AES.new(key, AES.MODE_CBC, iv)
             decrypted_content = unpad(cipher.decrypt(encrypted_content_bytes), AES.block_size)
-            
+
             # 복호화된 내용에서 만료일 파싱
             license_info = json.loads(decrypted_content.decode('utf-8'))
             expired = license_info.get('expired')
             issued = license_info.get('issued')
-            
+            oem = license_info.get('oem')
+
+            expired_date = datetime.strptime(expired, "%Y-%m-%d").date()
+            today = datetime.today().date()
+
+            if today > expired_date:
+                status = "inactive"
+            else:
+                status = "active"
+
             if not expired or not issued:
                 raise ValueError("만료일 또는 시작일을 찾을 수 없습니다")
-            
+
             return {
                 'code': '200',
                 'val': {
-                    'status': 'active',
+                    'status': status,
                     'expired': expired,
+                    'oem': oem,
                     'issued': issued,
                     'file_path': license_file
                 }
@@ -124,7 +134,7 @@ def process_license_content(content=None, original_filename=None):
 
         # 라이센스 디렉토리 경로
         license_dir = f"/usr/share/{host_uuid}"
-        
+
         # 디렉토리가 없으면 생성
         if not os.path.exists(license_dir):
             os.makedirs(license_dir, mode=0o700)
@@ -162,12 +172,12 @@ def process_license_content(content=None, original_filename=None):
             # AES 복호화
             cipher = AES.new(key, AES.MODE_CBC, iv)
             decrypted_content = unpad(cipher.decrypt(encrypted_content_bytes), AES.block_size)
-            
+
             # 복호화된 내용에서 만료일 파싱
             license_info = json.loads(decrypted_content.decode('utf-8'))
             expired = license_info.get('expired')
             issued = license_info.get('issued')
-            
+
             if not expired or not issued:
                 raise ValueError("만료일 또는 시작일을 찾을 수 없습니다")
 
@@ -187,7 +197,7 @@ def process_license_content(content=None, original_filename=None):
             new_filename = f"{filename_without_ext}"
         else:
             new_filename = f"license_{expired}"
-            
+
         new_filepath = os.path.join(license_dir, new_filename)
 
         # 라이센스 내용 저장

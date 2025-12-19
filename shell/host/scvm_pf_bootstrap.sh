@@ -26,7 +26,7 @@ do
   ssh -o StrictHostKeyChecking=no $scvm <<EOF
     rpm -ivh /usr/share/ablestack/powerflex/EMC-ScaleIO-activemq-*
     rpm -ivh /usr/share/ablestack/powerflex/EMC-ScaleIO-sds-*
-    TOKEN=Ablecloud1! rpm -ivh /usr/share/ablestack/powerflex/EMC-ScaleIO-lia-*
+    TOKEN=Ablestack123! rpm -ivh /usr/share/ablestack/powerflex/EMC-ScaleIO-lia-*
 EOF
 done
 
@@ -42,8 +42,8 @@ do
 done
 
 ################ CA 인증서 발급 (1번 scvm에서 실행) ##################
-python3 /opt/emc/scaleio/mdm/cfg/certificate_generator_MDM_USER.py --generate_ca /opt/emc/scaleio/mdm/cfg/mgmt_ca.pem --password Ablecloud1!
-python3 /opt/emc/scaleio/mdm/cfg/certificate_generator_MDM_USER.py --generate_cli /opt/emc/scaleio/mdm/cfg/cli_certificate.p12 -CA /opt/emc/scaleio/mdm/cfg/mgmt_ca.pem --password Ablecloud1!
+python3 /opt/emc/scaleio/mdm/cfg/certificate_generator_MDM_USER.py --generate_ca /opt/emc/scaleio/mdm/cfg/mgmt_ca.pem --password Ablestack123!
+python3 /opt/emc/scaleio/mdm/cfg/certificate_generator_MDM_USER.py --generate_cli /opt/emc/scaleio/mdm/cfg/cli_certificate.p12 -CA /opt/emc/scaleio/mdm/cfg/mgmt_ca.pem --password Ablestack123!
 python3 /opt/emc/scaleio/mdm/cfg/certificate_generator_MDM_USER.py --generate_mdm /opt/emc/scaleio/mdm/cfg/mdm_certificate.pem -CA /opt/emc/scaleio/mdm/cfg/mgmt_ca.pem
 python3 /opt/emc/scaleio/mdm/cfg/certificate_generator_MDM_USER.py --generate_mdm /opt/emc/scaleio/mdm/cfg/sec_mdm_certificate.pem -CA /opt/emc/scaleio/mdm/cfg/mgmt_ca.pem
 
@@ -79,7 +79,7 @@ scvms_cn=$(grep "$scvm_name" /etc/hosts| grep cn | awk {'print $1'})
   then
     scli --create_mdm_cluster --primary_mdm_ip $scvms_pn,$scvms_cn --primary_mdm_management_ip $scvms_pn,$scvms_cn --primary_mdm_name MDM1 --cluster_virtual_ip $virtual_ip_pn,$virtual_ip_cn --primary_mdm_virtual_ip_interface $interface_pn,$interface_cn --accept_license --approve_certificate
     sleep 1
-    scli --login --p12_path /opt/emc/scaleio/mdm/cfg/cli_certificate.p12 --p12_password Ablecloud1!
+    scli --login --p12_path /opt/emc/scaleio/mdm/cfg/cli_certificate.p12 --p12_password Ablestack123!
 
   elif [ $scvm == "pn-scvm2" ]
   then

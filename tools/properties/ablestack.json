@@ -2,9 +2,18 @@
     "bootstrap": {
         "scvm": "false",
         "ccvm": "false",
-        "pfmp": "false"
+        "pfmp": "false",
+        "gfs_configure": "false",
+        "local_configure": "false"
     },
     "monitoring": {
         "wall": "false"
+    },
+    "license": {
+        "status": "false",
+        "type": ""
+    },
+    "security_patch": {
+        "status": "false"
     }
 }

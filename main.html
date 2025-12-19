@@ -25,6 +25,10 @@
                     <button style="display:none" class="pf-c-button pf-m-link pf-m-inline" type="button"
                         id="button-link-storage-center-dashboard">스토리지센터 대시보드 연결</button>
                     <button style="display:none" class="pf-c-button pf-m-link pf-m-inline" type="button"
+                        id="button-link-gfs-storage-configure">GFS 스토리지 구성</button>
+                    <button style="display:none" class="pf-c-button pf-m-link pf-m-inline" type="button"
+                        id="button-link-local-storage-configure">로컬 스토리지 구성</button>
+                    <button style="display:none" class="pf-c-button pf-m-link pf-m-inline" type="button"
                         id="button-open-modal-wizard-pfmp-vm">파워플렉스 관리 플랫폼 VM 배포</button>
                     <button style="display:none" class="pf-c-button pf-m-link pf-m-inline" type="button"
                         id="button-link-cloud-center">클라우드센터 연결</button>
@@ -36,6 +40,7 @@
                         id="button-config-file-download" aria-disabled="false" type="button" data-ouia-safe="true">설정파일
                         다운로드</button>
                     <button class="pf-c-button pf-m-link pf-m-inline" type="button" id="button-open-modal-license-register">라이센스 관리</button>
+                    <button style="display: none; "class="pf-c-button pf-m-link pf-m-inline" type="button" id="button-open-modal-security-update">보안 패치</button>
                 </div>
             </div>
         </section>
@@ -43,7 +48,7 @@
         <!-- 상태를 보여주기 위한 레이아웃 시작 -->
         <section class="pf-c-page__main-section">
             <div class="pf-l-grid pf-m-gutter">
-                <div class="pf-l-grid__item pf-m-12-col">
+                <div class="pf-l-grid__item pf-m-12-col" id="div-grid-main">
                     <div class="pf-l-grid pf-m-gutter">
                         <div class="pf-l-grid__item pf-m-6-col" id="div-card-gfs-cluster-status" style="display: none;">
                             <!-- GFS 리소스 상태 카드 영역 시작-->
@@ -72,7 +77,13 @@
                                                     <button id="button-gfs-multipath-sync"
                                                     name="button-gfs-multipath-sync-name"
                                                     class="pf-c-dropdown__menu-item"
-                                                    type="button">외부 스토리지 동기화</button>
+                                                    type="button" disabled>외부 스토리지 동기화</button>
+                                                </li>
+                                                <li id="gfs-storage-rescan">
+                                                    <button id="button-gfs-storage-rescan"
+                                                    name="button-gfs-storage-rescan-name"
+                                                    class="pf-c-dropdown__menu-item"
+                                                    type="button" disabled>외부 스토리지 재검색</button>
                                                 </li>
                                                 <li class="pf-c-divider" role="separator"></li>
                                                 <li>
@@ -210,10 +221,16 @@
                                                 <li id="pfmp-bootstrap-run"></li>
                                                 <li class="pf-c-divider" role="separator"></li>
                                                 <li id="gfs-multipath-sync">
-                                                    <button id="button-gfs-multipath-sync"
+                                                    <button id="button-hci-multipath-sync"
                                                     name="button-gfs-multipath-sync-name"
                                                     class="pf-c-dropdown__menu-item"
-                                                    type="button">외부 스토리지 동기화</button>
+                                                    type="button" disabled>외부 스토리지 동기화</button>
+                                                </li>
+                                                <li id="gfs-storage-rescan">
+                                                    <button id="button-hci-storage-rescan"
+                                                    name="button-gfs-storage-rescan-name"
+                                                    class="pf-c-dropdown__menu-item"
+                                                    type="button" disabled>외부 스토리지 재검색</button>
                                                 </li>
                                                 <li class="pf-c-divider" role="separator"></li>
                                                 <li>
@@ -328,8 +345,7 @@
                             </div>
                             <!-- 스토리지 클러스터 상태 카드 영역 끝 -->
                         </div>
-
-                        <div class="pf-l-grid__item pf-m-6-col">
+                        <div class="pf-l-grid__item pf-m-6-col" id="div-card-cloud-cluster-status">
                             <!-- 클라우드센터 클러스터 상태 카드 영역 시작-->
                             <div class="pf-c-card pf-m-hoverable pf-m-compact" id="card-cloud-cluster-status">
                                 <div class="pf-c-card__header">
@@ -360,6 +376,11 @@
                                                         class="pf-c-dropdown__menu-item pf-m-disabled"
                                                         type="button">클라우드센터VM 정지</button>
                                                 </li>
+                                                <!-- <li>
+                                                    <button id="button-cloud-cluster-delete"
+                                                        class="pf-c-dropdown__menu-item pf-m-disabled"
+                                                        type="button">클라우드센터VM 파기</button>
+                                                </li> -->
                                                 <li>
                                                     <button id="button-cloud-cluster-cleanup"
                                                         class="pf-c-dropdown__menu-item pf-m-disabled"
@@ -372,8 +393,14 @@
                                                         type="button">클라우드센터VM 마이그레이션</button>
                                                 </li>
                                                 <li class="pf-c-divider" role="separator"></li>
+                                                <li>
+                                                    <button id="button-cloud-cluster-ssh-port"
+                                                        class="pf-c-dropdown__menu-item pf-m-disabled"
+                                                        type="button">SSH Port 변경</button>
+                                                </li>
+                                                <li class="pf-c-divider" role="separator"></li>
                                                 <li id="ccvm-after-bootstrap-run"></li>
-                                                <li id="ccvm-before-bootstrap-run"></li>
+                                                <li style="display: none;" id="ccvm-before-bootstrap-run"></li>
                                                 <li class="pf-c-divider" role="separator"></li>
                                                 <li id="ccvm-after-monitoring-run"></li>
                                                 <li id="ccvm-before-monitoring-run"></li>
@@ -685,6 +712,10 @@
                                                     <button class="pf-c-dropdown__menu-item pf-m-disabled" type="button"
                                                         id="menu-item-set-gfs-disk-delete">GFS 디스크 삭제</button>
                                                 </li>
+                                                <li>
+                                                    <button class="pf-c-dropdown__menu-item pf-m-disabled" type="button"
+                                                        id="menu-item-set-gfs-disk-extend">GFS 디스크 확장</button>
+                                                </li>
                                                 <li class="pf-c-divider" role="separator"></li>
                                                 <li>
                                                     <button class="pf-c-dropdown__menu-item pf-m-disabled" type="button"
@@ -698,6 +729,11 @@
                                                 <li>
                                                     <button class="pf-c-dropdown__menu-item pf-m-disabled" type="button"
                                                         id="menu-item-set-gfs-clvm-disk-info">CLVM 디스크 정보</button>
+                                                </li>
+                                                <li class="pf-c-divider" role="separator"></li>
+                                                <li>
+                                                    <button class="pf-c-dropdown__menu-item pf-m-disabled" type="button"
+                                                        id="menu-item-set-disk-detail-info">디스크 상세 정보</button>
                                                 </li>
                                             </ul>
                                         </div>
@@ -733,54 +769,31 @@
                             </div>
                             <!-- GFS 디스크 상태 카드 영역 끝 -->
                         </div>
-                        <div class="pf-l-grid__item pf-m-6-col">
-                            <!-- 클라우드센터VM 상태 카드 영역 시작-->
-                            <div class="pf-c-card pf-m-hoverable pf-m-compact" id="card-cloud-vm-status">
+                        <!-- 로컬 디스크 상태 카드 영역 시작-->
+                        <div class="pf-l-grid__item pf-m-12-col" id="div-card-local-disk-status" style="display:none">
+                            <div class="pf-c-card pf-m-hoverable pf-m-compact" id="card-local-disk-status">
                                 <div class="pf-c-card__header">
                                     <div class="pf-c-card__header-main">
                                         <i class="pf-icon pf-icon-virtual-machine"
                                             style="font-size: var(--pf-global--icon--FontSize--lg);padding-right: 15px"
                                             aria-hidden="true"></i>
                                     </div>
-                                    <div class="pf-c-card__title" id="card-cloud-vm-title">클라우드센터 가상머신 상태</div>
+                                    <div class="pf-c-card__title" id="card-local-disk-status-title">로컬 디스크 상태
+                                    </div>
                                     <div class="pf-c-card__actions">
                                         <div class="pf-c-dropdown">
                                             <button class="pf-c-dropdown__toggle pf-m-plain"
-                                                id="card-action-cloud-vm-status" aria-expanded="false" type="button"
+                                                id="card-action-local-disk-status" aria-expanded="false" type="button"
                                                 aria-label="Actions">
                                                 <i class="fas fa-ellipsis-v" aria-hidden="true"></i>
                                             </button>
                                             <ul class="pf-c-dropdown__menu pf-m-align-right"
-                                                aria-labelledby="card-action-cloud-vm-status"
-                                                id="dropdown-menu-cloud-vm-status">
-                                                <li>
-                                                    <button class="pf-c-dropdown__menu-item pf-m-disabled"
-                                                        id="card-action-cloud-vm-change" type="button">클라우드센터VM 자원변경</button>
-                                                </li>
-                                                <li>
-                                                    <button class="pf-c-dropdown__menu-item pf-m-disabled"
-                                                        id="button-mold-service-control" type="button">Mold 서비스 제어</button>
-                                                </li>
-                                                <li>
-                                                    <button class="pf-c-dropdown__menu-item pf-m-disabled"
-                                                        id="button-mold-db-control" type="button">Mold DB 제어</button>
-                                                </li>
-                                                <li>
-                                                    <button class="pf-c-dropdown__menu-item pf-m-disabled"
-                                                        id="button-mold-secondary-size-expansion" type="button">Mold 세컨더리 용량 추가</button>
-                                                </li>
-                                                <li>
-                                                    <button class="pf-c-dropdown__menu-item pf-m-disabled"
-                                                        id="button-cloud-vm-snap-backup" type="button">클라우드센터VM 스냅샷 백업</button>
-                                                </li>
-                                                <li>
-                                                    <button class="pf-c-dropdown__menu-item pf-m-disabled"
-                                                        id="button-cloud-vm-snap-rollback" type="button">클라우드센터VM 스냅샷 복구</button>
-                                                </li>
-                                                <li>
-                                                    <button class="pf-c-dropdown__menu-item"
-                                                        id="card-action-cloud-vm-db-dump" type="button">클라우드센터VM DB 백업</button>
-                                                </li>
+                                                aria-labelledby="card-action-local-disk-status"
+                                                id="dropdown-menu-local-disk-status">
+                                                <!-- <li>
+                                                    <button class="pf-c-dropdown__menu-item pf-m-disabled" type="button"
+                                                        id="menu-item-set-local-disk-add">로컬 디스크 추가</button>
+                                                </li> -->
                                             </ul>
                                         </div>
                                     </div>
@@ -792,19 +805,17 @@
                                             style="--pf-c-description-list--RowGap: 10px;">
                                             <div class="pf-c-description-list__group">
                                                 <dt class="pf-c-description-list__term">
-                                                    <span class="pf-c-description-list__text">가상머신 상태</span>
+                                                    <span class="pf-c-description-list__text">디스크 마운트 상태</span>
                                                 </dt>
-                                                <dd class="pf-c-description-list__description"
-                                                    id="description-cloud-vm-status" style="overflow: auto;">
-                                                    <div class="pf-c-description-list__text">
-                                                        <span class="pf-c-label pf-m-red" id="span-cloud-vm-status">
-                                                            <span class="pf-c-label__content"
-                                                                id="span-cloud-vm-status-content">
+                                                <dd class="pf-c-description-list__description">
+                                                    <div class="pf-c-description-list__text" style="overflow: auto;display:flex; align-items:center;">
+                                                        <span class="pf-c-label pf-m-red" id="local-disk-css" style="margin-right: 10px">
+                                                            <span class="pf-c-label__content">
                                                                 <span class="pf-c-label__icon">
-                                                                    <i id="ccvm_status_icon"
-                                                                        class="fas fa-fw fa-exclamation-triangle"
-                                                                        aria-hidden="true"></i>
-                                                                </span>Health Err
+                                                                    <i class="fas fa-fw fa-exclamation-triangle"
+                                                                        aria-hidden="true" id="local-disk-icon"></i>
+                                                                </span>
+                                                                <div id="local-disk-status">Health Err</div>
                                                             </span>
                                                         </span>
                                                     </div>
@@ -812,110 +823,34 @@
                                             </div>
                                             <div class="pf-c-description-list__group">
                                                 <dt class="pf-c-description-list__term">
-                                                    <span class="pf-c-description-list__text">Mold 서비스 상태</span>
+                                                    <span class="pf-c-description-list__text">마운트 경로</span>
                                                 </dt>
                                                 <dd class="pf-c-description-list__description">
-                                                    <div id="div-mold-service-status"
-                                                        class="pf-c-description-list__text">N/A</div>
+                                                    <div class="pf-c-description-list__text" id="page-local-disk-mount-info">N/A</div>
                                                 </dd>
                                             </div>
                                             <div class="pf-c-description-list__group">
                                                 <dt class="pf-c-description-list__term">
-                                                    <span class="pf-c-description-list__text">Mold DB 상태</span>
+                                                    <span class="pf-c-description-list__text">물리 볼륨</span>
                                                 </dt>
                                                 <dd class="pf-c-description-list__description">
-                                                    <div id="div-mold-db-status" class="pf-c-description-list__text">N/A
-                                                    </div>
+                                                    <div class="pf-c-description-list__text" id="page-local-disk-physical-volume">N/A</div>
                                                 </dd>
                                             </div>
                                             <div class="pf-c-description-list__group">
                                                 <dt class="pf-c-description-list__term">
-                                                    <span class="pf-c-description-list__text">CPU</span>
+                                                    <span class="pf-c-description-list__text">볼륨 그룹</span>
                                                 </dt>
                                                 <dd class="pf-c-description-list__description">
-                                                    <div class="pf-c-description-list__text" id="div-cloud-vm-cpu-text">
-                                                        N/A vCore</div>
+                                                    <div class="pf-c-description-list__text" id="page-local-disk-volume-group">N/A</div>
                                                 </dd>
                                             </div>
                                             <div class="pf-c-description-list__group">
                                                 <dt class="pf-c-description-list__term">
-                                                    <span class="pf-c-description-list__text">Memory</span>
+                                                    <span class="pf-c-description-list__text">디스크 크기</span>
                                                 </dt>
                                                 <dd class="pf-c-description-list__description">
-                                                    <div class="pf-c-description-list__text"
-                                                        id="div-cloud-vm-memory-text">N/A GiB</div>
-                                                </dd>
-                                            </div>
-                                            <div class="pf-c-description-list__group">
-                                                <dt class="pf-c-description-list__term">
-                                                    <span class="pf-c-description-list__text">ROOT Disk 크기</span>
-                                                </dt>
-                                                <dd class="pf-c-description-list__description">
-                                                    <div class="pf-c-description-list__text"
-                                                        id="div-cloud-vm-disk-text">N/A GiB</div>
-                                                </dd>
-                                            </div>
-                                            <div class="pf-c-description-list__group">
-                                                <dt class="pf-c-description-list__term">
-                                                    <span class="pf-c-description-list__text">세컨더리 Disk 크기</span>
-                                                </dt>
-                                                <dd class="pf-c-description-list__description">
-                                                    <div class="pf-c-description-list__text"
-                                                        id="div-cloud-vm-secondary-disk-text">N/A GiB</div>
-                                                </dd>
-                                            </div>
-                                            <div class="pf-c-description-list__group">
-                                                <dt class="pf-c-description-list__term">
-                                                    <span class="pf-c-description-list__text">관리 NIC</span>
-                                                </dt>
-                                                <dd class="pf-c-description-list__description">
-                                                    <div class="pf-c-description-list__text"
-                                                        id="div-cloud-vm-nic-type-text">NIC Type : N/A (Parent : N/A)
-                                                    </div>
-                                                </dd>
-                                            </div>
-                                            <div class="pf-c-description-list__group">
-                                                <dt class="pf-c-description-list__term">
-                                                    <span class="pf-c-description-list__text">&nbsp;</span>
-                                                </dt>
-                                                <dd class="pf-c-description-list__description">
-                                                    <div class="pf-c-description-list__text"
-                                                        id="div-cloud-vm-nic-ip-text">IP : N/A</div>
-                                                </dd>
-                                            </div>
-                                            <div class="pf-c-description-list__group">
-                                                <dt class="pf-c-description-list__term">
-                                                    <span class="pf-c-description-list__text">&nbsp;</span>
-                                                </dt>
-                                                <dd class="pf-c-description-list__description">
-                                                    <div class="pf-c-description-list__text"
-                                                        id="div-cloud-vm-nic-prefix-text">PREFIX : N/A</div>
-                                                </dd>
-                                            </div>
-                                            <div class="pf-c-description-list__group">
-                                                <dt class="pf-c-description-list__term">
-                                                    <span class="pf-c-description-list__text">&nbsp;</span>
-                                                </dt>
-                                                <dd class="pf-c-description-list__description">
-                                                    <div class="pf-c-description-list__text"
-                                                        id="div-cloud-vm-nic-gw-text">GW : N/A</div>
-                                                </dd>
-                                            </div>
-                                            <div class="pf-c-description-list__group">
-                                                <dt class="pf-c-description-list__term">
-                                                    <span class="pf-c-description-list__text">&nbsp;</span>
-                                                </dt>
-                                                <dd class="pf-c-description-list__description">
-                                                    <div class="pf-c-description-list__text"
-                                                        id="div-cloud-vm-nic-dns-text">DNS : N/A</div>
-                                                </dd>
-                                            </div>
-                                            <div class="pf-c-description-list__group">
-                                                <dt class="pf-c-description-list__term">
-                                                    <span class="pf-c-description-list__text">&nbsp;</span>
-                                                </dt>
-                                                <dd class="pf-c-description-list__description">
-                                                    <div class="pf-c-description-list__text">&nbsp;</div>
+                                                    <div class="pf-c-description-list__text" id="page-local-disk-size">N/A</div>
                                                 </dd>
                                             </div>
                                             <div class="pf-c-description-list__group">
@@ -930,13 +865,14 @@
                                     </section>
                                 </div>
                                 <div class="pf-c-divider" role="separator"></div>
-                                <div id="ccvm-low-info" class="pf-c-card__footer"
-                                    style="color: var(--pf-global--danger-color--100);">클라우드센터 가상머신이 배포되지 않았습니다.</div>
+                                <div class="pf-c-card__footer" style="color: var(--pf-global--danger-color--100);"
+                                    id="local-disk-low-info">로컬 디스크가 생성되지 않았습니다.</div>
                             </div>
-                            <!-- 클라우드센터VM 상태 카드 영역 끝 -->
                         </div>
+                        <div class="pf-l-grid__item pf-m-6-col" id="div-card-cloud-vm-status-1" style="display: none;"></div>
                     </div>
                 </div>
+                <div class="pf-l-grid__item pf-m-6-col" id="div-card-cloud-vm-status-2" style="display: none;"></div>
             </div>
         </section>
     </main>
@@ -950,6 +886,12 @@
 
 <!-- 스토리지센터VM 배포 마법사 : ./src/features/storage-vm-wizard.html을 내용으로 load -->
 <div class="pf-c-backdrop" id="div-modal-wizard-storage-vm"></div>
+
+<!-- GFS 스토리지 구성 마법사 : ./src/features/gfs-storage-configure-wizard.html을 내용으로 load -->
+<div class="pf-c-backdrop" id="div-modal-wizard-gfs-storage-configure"></div>
+
+<!-- 로컬 스토리지 구성 마법사 : ./src/features/gfs-storage-configure-wizard.html을 내용으로 load -->
+<div class="pf-c-backdrop" id="div-modal-wizard-local-storage-configure"></div>
 
 <!-- 클라우드센터VM 배포 마법사 : ./src/features/cloud-vm-wizard.html을 내용으로 load -->
 <div class="pf-c-backdrop" id="div-modal-wizard-cloud-vm"></div>
@@ -999,6 +941,15 @@
             <div class="pf-c-modal-box__body">
                 <div>클라우드센터VM을 정지하시겠습니까?</div>
             </div>
+            <div id="modal-div-force-quit" class="pf-c-modal-box__body pf-l-flex pf-m-align-items-center" style="display: none;">
+                <p>강제 종료</p>
+                <label class="pf-c-switch">
+                    <input id="modal-input-force-quit" class="pf-c-switch__input" type="checkbox" aria-label="강제 종료 체크">
+                    <span class="pf-c-switch__toggle">
+                        <div id="modal-switch-force-quit" class="pf-c-switch__toggle-icon" aria-hidden="true"></div>
+                    </span>
+                </label>
+            </div>
             <footer class="pf-c-modal-box__footer">
                 <button id="button-execution-modal-cloud-vm-stop" aria-disabled="false" class="pf-c-button pf-m-primary"
                     type="button" data-ouia-safe="true">실행</button>
@@ -1009,6 +960,43 @@
     </div>
 </div>
 <!-- 클라우드센터VM 정지 : Modal 영역 끝 -->
+<!-- 클라우드센터VM 파기 : Modal 영역 시작 -->
+<div id="div-modal-delete-cloud-vm" class="pf-c-backdrop" style="display:none">
+    <div class="pf-l-bullseye">
+        <div class="pf-c-modal-box pf-m-sm" role="dialog" aria-modal="true" aria-label="Cloud VM delete">
+            <button id="button-close-modal-cloud-vm-delete" aria-disabled="false" aria-label="Close"
+                class="pf-c-button pf-m-plain" type="button">
+                <i class="fas fa-times" aria-hidden="true"></i>
+            </button>
+            <header class="pf-c-modal-box__header">
+                <h1 class="pf-c-modal-box__title"><span class="pf-c-modal-box__title-text">클라우드센터VM 파기</span></h1>
+                <div style="display: flex; align-items: center; margin-top: 20px; color:maroon;">
+                    <i class="fas fa-exclamation-triangle " aria-hidden="true" style="margin-right: 6px;font-size:25px; color: #d9822b;"></i>
+                    <span>클라우드 센터 VM을 파기할 경우, 이미지를 제외한 클러스터의 리소스만 삭제됩니다. <br/>이미지는 별도로 삭제되지 않으니, 필요 시 '완전히 삭제' 버튼을 클릭하여 삭제해 주세요.</span>
+                </div>
+            </header>
+            <div class="pf-c-modal-box__body" style="margin-top: 10px;font-size: large;">
+                <div>클라우드센터VM을 파기하시겠습니까?</div>
+            </div>
+            <div id="modal-div-cloud-vm-delete" class="pf-c-modal-box__body pf-l-flex pf-m-align-items-center" style="margin-top: 10px;">
+                <p>완전히 삭제</p>
+                <label class="pf-c-switch">
+                    <input id="modal-input-cloud-vm-delete" class="pf-c-switch__input" type="checkbox" aria-label="완전히 삭제 체크">
+                    <span class="pf-c-switch__toggle">
+                        <div id="modal-switch-cloud-vm-delete" class="pf-c-switch__toggle-icon" aria-hidden="true"></div>
+                    </span>
+                </label>
+            </div>
+            <footer class="pf-c-modal-box__footer">
+                <button id="button-execution-modal-cloud-vm-delete" aria-disabled="false" class="pf-c-button pf-m-primary"
+                    type="button" data-ouia-safe="true">실행</button>
+                <button id="button-cancel-modal-cloud-vm-delete" aria-disabled="false" class="pf-c-button pf-m-link"
+                    type="button" data-ouia-safe="true">취소</button>
+            </footer>
+        </div>
+    </div>
+</div>
+<!-- 클라우드센터VM 파기 : Modal 영역 끝 -->
 
 <!-- 클라우드센터VM 클린업 : Modal 영역 시작 -->
 <div id="div-modal-cleanup-cloud-vm" class="pf-c-backdrop" style="display:none">
@@ -1352,7 +1340,7 @@
                         </div>
                     </section>
                 </form>
-                <label class="pf-c-check pf-c-select__menu-item" style="margin-top: 10px;">
+                <label class="pf-c-check pf-c-select__menu-item" style="margin-top: 10px;" id="label-checkbox-mold-secondary-size-expansion">
                     <input class="pf-c-check__input" type="checkbox" id="input-checkbox-mold-secondary-size-expansion" value="resize"/>
                     <span class="pf-c-check__label" style="color: #c9190b;"><i class="fas fa-fw fa-exclamation-circle" aria-hidden="true"></i>용량 추가 작업시 클라우드센터 가상머신 스냅샷이 모두 삭제되고,<br/>&nbsp;&emsp;클라우드센터 가상머신을 재시작합니다. 그래도 진행하시겠습니까?</span>
                 </label>
@@ -1703,6 +1691,38 @@
     </div>
 </div>
 <!-- CLVM 디스크 정보 : Modal 영역 끝 -->
+<!-- 디스크 상세 정보 : Modal 영역 시작 -->
+<div id="div-modal-disk-detail-info" class="pf-c-backdrop" style="display:none">
+    <div class="pf-l-bullseye">
+        <div class="pf-c-modal-box pf-m-lg" role="dialog" aria-modal="true" aria-label="Disk Detail Info" style="--pf-c-modal-box--m-lg--lg--MaxWidth : 100rem;height: 80%;">
+            <button id="button-close-modal-disk-detail-info" aria-disabled="false" aria-label="Close"
+                class="pf-c-button pf-m-plain" type="button">
+                <i class="fas fa-times" aria-hidden="true"></i>
+            </button>
+            <header class="pf-c-modal-box__header">
+                <h1 class="pf-c-modal-box__title">
+                    <span class="pf-c-modal-box__title-text">디스크 상세 정보</span>
+                </h1>
+            </header>
+            <div class="pf-c-modal-box__body">
+                <form novalidate class="pf-c-form pf-m-horizontal" style="margin-left:15px;">
+                    <section class="pf-c-form__section">
+                        <div class="pf-c-form__group" style="display: flex;font-family: monospace;">
+                            <div class="pf-c-form__group-control pf-m-stack" id="disk-detail-info"
+                                style="margin-top:8px;overflow-y: auto;">
+                            </div>
+                        </div>
+                    </section>
+                </form>
+            </div>
+            <footer class="pf-c-modal-box__footer">
+                <button id="button-execution-modal-disk-detail-info" aria-disabled="false"
+                    class="pf-c-button pf-m-primary" type="button" data-ouia-safe="true">확인</button>
+            </footer>
+        </div>
+    </div>
+</div>
+<!-- 디스크 상세 정보 : Modal 영역 끝 -->
 <!-- GFS 디스크 추가 : Modal 영역 시작 -->
 <div id="div-modal-gfs-disk-add" class="pf-c-backdrop" style="display:none">
     <div class="pf-l-bullseye">
@@ -1786,7 +1806,96 @@
     </div>
 </div>
 <!-- GFS 디스크 삭제 : Modal 영역 끝 -->
-<!-- GFS 디스크 추가 : Modal 영역 시작 -->
+<!-- GFS 디스크 확장 : Modal 영역 시작 -->
+<div id="div-modal-gfs-disk-extend" class="pf-c-backdrop" style="display: none;">
+    <div class="pf-l-bullseye">
+      <div class="pf-c-modal-box pf-m-md" role="dialog" aria-modal="true" aria-label="GFS Disk extend"
+        style="border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.2); padding: 0;">
+
+        <!-- 닫기 버튼 -->
+        <button id="button-close-modal-gfs-disk-extend" aria-label="Close"
+          class="pf-c-button pf-m-plain pf-c-modal-box__close"
+          style="top: 16px; right: 16px;">
+          <i class="fas fa-times" aria-hidden="true"></i>
+        </button>
+
+        <!-- 헤더 -->
+        <header class="pf-c-modal-box__header" style="padding: 24px 24px 10px 24px;">
+          <h1 class="pf-c-modal-box__title" style="font-size: 25px; font-weight: 600;">
+            <span class="pf-c-modal-box__title-text">GFS 디스크 확장</span>
+          </h1>
+        </header>
+        <!-- 본문 -->
+        <div class="pf-c-modal-box__body" style="padding: 16px 24px 8px 24px;">
+          <form class="pf-c-form">
+            <!-- 디스크 목록 -->
+            <div class="pf-c-form__group">
+              <label class="pf-c-form__label" for="gfs-disk-extend-list">
+                <span class="pf-c-form__label-text" style="font-weight: 600; font-size:large;">1. 확장할 GFS 디스크 및 마운트 이름</span>
+              </label>
+              <div id="gfs-disk-extend-list" class="pf-c-form__group-control pf-m-stack"
+                style="margin-top:8px;padding:12px; background-color: #f5f5f5; border-radius: 6px; max-height: 200px; overflow-y: auto;">
+              </div>
+            </div>
+            <!-- 확장 방식 -->
+            <div class="pf-c-form__group">
+                <label class="pf-c-form__label">
+                  <span class="pf-c-form__label-text" style="font-weight: 600;font-size:large">2. 확장 방식 선택</span>
+                </label>
+                <div class="pf-c-form__group-control" style="margin-top: 8px;">
+                  <label style="display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 6px; transition: background 0.2s;"
+                    onmouseover="this.style.backgroundColor='#f3f4f6'" onmouseout="this.style.backgroundColor='transparent'">
+                    <input type="radio" name="extend-method" id="method-resize" value="resize" checked
+                      style="appearance: none; width: 18px; height: 18px; border: 2px solid #007BBA; border-radius: 50%; position: relative; cursor: pointer;">
+                    <span style="font-size: 15px;">기존 디스크 사이즈만 확장</span>
+                  </label>
+
+                  <label style="display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 6px; transition: background 0.2s;"
+                    onmouseover="this.style.backgroundColor='#f3f4f6'" onmouseout="this.style.backgroundColor='transparent'">
+                    <input type="radio" name="extend-method" id="method-add-lun" value="add-lun"
+                      style="appearance: none; width: 18px; height: 18px; border: 2px solid #007BBA; border-radius: 50%; position: relative; cursor: pointer;">
+                    <span style="font-size: 15px;">새로운 LUN 디스크 추가</span>
+                  </label>
+                </div>
+              </div>
+            <!-- LUN 디스크 선택 영역 -->
+            <div id="lun-selection-section" class="pf-c-form__group" style="display: none; margin-bottom: 20px;">
+              <label class="pf-c-form__label">
+                <span class="pf-c-form__label-text" style="font-weight: 600;">추가할 LUN 디스크 선택</span>
+              </label>
+              <div class="pf-c-form__group-control pf-m-stack" id="gfs-disk-extend-add-list"
+                style="margin-top: 8px; padding: 8px 12px; background-color: #f0f0f0; border-radius: 6px; max-height: 250px; overflow-y: auto;">
+                <!-- JS로 디스크 삽입 예정 -->
+              </div>
+            </div>
+            <div id="modal-div-gfs-extend-no-downtime" class="pf-c-modal-box__body pf-l-flex pf-m-align-items-center">
+                <p>무중단 확장</p>
+                <label class="pf-c-switch">
+                    <input id="modal-input-gfs-extend-no-downtime" class="pf-c-switch__input" type="checkbox" aria-label="무중단 확장 체크">
+                    <span class="pf-c-switch__toggle">
+                        <div id="modal-switch-gfs-extend-no-downtime" class="pf-c-switch__toggle-icon" aria-hidden="true"></div>
+                    </span>
+                </label>
+            </div>
+          </form>
+        </div>
+        <!-- 푸터 -->
+        <footer class="pf-c-modal-box__footer" style="padding: 16px 24px 24px 24px; display: flex; justify-content: flex-end; gap: 12px;">
+          <button id="button-execution-modal-gfs-disk-extend" class="pf-c-button pf-m-primary" type="button"
+            style="padding: 6px 16px;" disabled>
+            확장
+          </button>
+          <button id="button-cancel-modal-gfs-disk-extend" class="pf-c-button pf-m-link" type="button"
+            style="color: #0066cc;">
+            취소
+          </button>
+        </footer>
+      </div>
+    </div>
+  </div>
+  <!-- GFS 디스크 확장 : Modal 영역 끝 -->
+
+<!-- GFS 디스크 정보 : Modal 영역 시작 -->
 <div id="div-modal-gfs-disk-info" class="pf-c-backdrop" style="display:none">
     <div class="pf-l-bullseye">
         <div class="pf-c-modal-box pf-m-md" role="dialog" aria-modal="true" aria-label="GFS Disk Info">
@@ -1872,7 +1981,7 @@
         </div>
     </div>
 </div>
-<!-- GFS 디스크 추가 : Modal 영역 끝 -->
+<!-- GFS 디스크 정보 : Modal 영역 끝 -->
 <!-- GFS 호스트 제거 : Modal 영역 시작 -->
 <div id="div-modal-gfs-host-remove" class="pf-c-backdrop" style="display:none">
     <div class="pf-l-bullseye">
@@ -1948,6 +2057,40 @@
     </div>
 </div>
 <!-- 외부 스토리지 동기화 : Modal 영역 끝 -->
+<!-- 외부 스토리지 재검색  : Modal 영역 시작 -->
+<div id="div-modal-storage-rescan" class="pf-c-backdrop" style="display:none">
+    <div class="pf-l-bullseye">
+        <div class="pf-c-modal-box pf-m-sm" role="dialog" aria-modal="true" aria-label="Storage Rescan">
+            <button id="button-close-modal-storage-rescan" aria-disabled="false" aria-label="Close"
+                class="pf-c-button pf-m-plain" type="button">
+                <i class="fas fa-times" aria-hidden="true"></i>
+            </button>
+            <header class="pf-c-modal-box__header">
+                <h1 class="pf-c-modal-box__title"><span class="pf-c-modal-box__title-text">외부 스토리지 재검색</span>
+                </h1>
+            </header>
+            <div class="pf-c-modal-box__body">
+                <div> 재검색을 진행하시겠습니까?<br/><br/><p style="color:maroon;"><i class="fas fa-fw fa-exclamation-triangle" aria-hidden="true" style="color: orange;"></i>외부 스토리지를 먼저 연결해주시기 바랍니다. 스토리지에서 연결이 정상적으로 확인된 후, 작업을 진행해주시기 바랍니다.</p></div>
+            </div>
+            <div id="modal-div-multipath-connect-check" class="pf-c-modal-box__body pf-l-flex pf-m-align-items-center">
+                <p>외부 스토리지 연결 확인</p>
+                <label class="pf-c-switch">
+                    <input id="modal-input-multipath-connect-check" class="pf-c-switch__input" type="checkbox" aria-label="외부 스토리지 연결 확인">
+                    <span class="pf-c-switch__toggle">
+                        <div id="modal-switch-multipath-connect-check" class="pf-c-switch__toggle-icon" aria-hidden="true"></div>
+                    </span>
+                </label>
+            </div>
+            <footer class="pf-c-modal-box__footer">
+                <button id="button-execution-modal-storage-rescan" aria-disabled="false"
+                    class="pf-c-button pf-m-primary" type="button" data-ouia-safe="true" disabled>실행</button>
+                <button id="button-cancel-modal-storage-rescan" aria-disabled="false" class="pf-c-button pf-m-link"
+                    type="button" data-ouia-safe="true">취소</button>
+            </footer>
+        </div>
+    </div>
+</div>
+<!-- 외부 스토리지 재검색 : Modal 영역 끝 -->
 <!-- WWN 목록 조회 : Modal 영역 시작 -->
 <div id="div-modal-hba-wwn-list" class="pf-c-backdrop" style="display:none">
     <div class="pf-l-bullseye">
@@ -1987,6 +2130,7 @@
 <!-- 클라우드센터VM 용량 변경에 관한 modal : ./src/features/cloud-vm-change-alert.html을 내용으로 load -->
 <div class="pf-c-backdrop" id="div-change-alert-cloud-vm"></div>
 <!-- 해당 페이지에 필요한 javascript 파일 추가 영역 시작 -->
+<!-- <script src="./src/features/card-cloud-center-status.js"></script> -->
 <script src="./src/features/cloud-center-virtual-machine.js"></script>
 <script src="./src/features/main.js"></script>
 <script src="./src/features/card-cloud-cluster-status.js"></script>
@@ -2034,6 +2178,116 @@
 </div>
 <!-- 라이센스 관리 : Modal 영역 끝 -->
 
+<!-- 보안 패치  : Modal 영역 시작 -->
+<div id="div-modal-security-update" class="pf-c-backdrop" style="display: none;">
+    <div class="pf-l-bullseye">
+        <div class="pf-c-modal-box pf-m-sm" role="dialog" aria-modal="true" aria-label="Security Update">
+            <button id="button-close-modal-security-update" aria-disabled="false" aria-label="Close"
+                class="pf-c-button pf-m-plain" type="button">
+                <i class="fas fa-times" aria-hidden="true"></i>
+            </button>
+            <header class="pf-c-modal-box__header">
+                <h1 class="pf-c-modal-box__title"><span class="pf-c-modal-box__title-text">보안 패치</span>
+                </h1>
+            </header>
+            <div class="pf-c-modal-box__body">
+                <div> 보안 패치를 진행하시겠습니까?<br/></div>
+            </div>
+            <div id="modal-div-ssh-port" class="pf-c-modal-box__body is-hidden">
+                <label for="modal-input-ssh-port" class="pf-c-form__label">
+                  <span class="pf-c-form__label-text">SSH 포트</span>
+                </label>
+                <input id="modal-input-ssh-port" type="number" min="1" max="65535"
+                       placeholder="example: 10022" class="pf-c-form-control" style="max-width:300px">
+                <div id="modal-help-ssh-port" class="pf-c-form__helper-text" aria-live="polite"></div>
+              </div>
+              <div id="modal-div-ssh-port-change" class="pf-c-modal-box__body pf-l-flex pf-m-align-items-center">
+                <p>SSH PORT 변경</p>
+                <label class="pf-c-switch">
+                    <input id="modal-input-ssh-port-change" class="pf-c-switch__input" type="checkbox" aria-label="ssh port 변경">
+                    <span class="pf-c-switch__toggle">
+                        <div id="modal-switch-ssh-port-change" class="pf-c-switch__toggle-icon" aria-hidden="true"></div>
+                    </span>
+                </label>
+            </div>
+            <div id="modal-div-add-host-security-update-run" class="pf-c-modal-box__body pf-l-flex pf-m-align-items-center">
+                <p>추가된 호스트 보안 패치 실행</p>
+                <label class="pf-c-switch">
+                    <input id="modal-input-add-host-security-update-run" class="pf-c-switch__input" type="checkbox" aria-label="추가된 호스트 보안 패치 실행">
+                    <span class="pf-c-switch__toggle">
+                        <div id="modal-switch-add-host-security-update-run" class="pf-c-switch__toggle-icon" aria-hidden="true"></div>
+                    </span>
+                </label>
+            </div>
+            <div id="modal-div-security-update-check" class="pf-c-modal-box__body pf-l-flex pf-m-align-items-center">
+                <p>보안 패치 확인</p>
+                <label class="pf-c-switch">
+                    <input id="modal-input-security-update-check" class="pf-c-switch__input" type="checkbox" aria-label="보안 패치 체크">
+                    <span class="pf-c-switch__toggle">
+                        <div id="modal-switch-security-update-check" class="pf-c-switch__toggle-icon" aria-hidden="true"></div>
+                    </span>
+                </label>
+            </div>
+            <footer class="pf-c-modal-box__footer">
+                <button id="button-execution-modal-security-update" aria-disabled="false"
+                    class="pf-c-button pf-m-primary" type="button" data-ouia-safe="true" disabled>실행</button>
+                <button id="button-cancel-modal-security-update" aria-disabled="false" class="pf-c-button pf-m-link"
+                    type="button" data-ouia-safe="true">취소</button>
+            </footer>
+        </div>
+    </div>
+</div>
+<!-- 보안 패치 : Modal 영역 끝 -->
+<!-- ssh port 변경  : Modal 영역 시작 -->
+<div id="div-modal-ssh-port-change" class="pf-c-backdrop" style="display: none;">
+    <div class="pf-l-bullseye">
+        <div class="pf-c-modal-box pf-m-sm" role="dialog" aria-modal="true" aria-label="SSH Port Change">
+            <button id="button-close-modal-ssh-port-change" aria-disabled="false" aria-label="Close"
+                class="pf-c-button pf-m-plain" type="button">
+                <i class="fas fa-times" aria-hidden="true"></i>
+            </button>
+            <header class="pf-c-modal-box__header">
+                <h1 class="pf-c-modal-box__title"><span class="pf-c-modal-box__title-text">SSH Port 변경</span>
+                </h1>
+            </header>
+            <div class="pf-c-modal-box__body">
+                <div>SSH Port를 변경하시겠습니까?<br/></div>
+            </div>
+            <div id="modal-div-ssh-port-change-before" class="pf-c-modal-box__body is-hidden">
+                <label for="modal-input-ssh-port-change-before" class="pf-c-form__label">
+                  <span class="pf-c-form__label-text">현재 SSH 포트</span>
+                </label>
+                <input id="modal-input-ssh-port-change-before" type="number" min="1" max="65535"
+                       placeholder="example: 22" class="pf-c-form-control" style="max-width:300px">
+                <div id="modal-help-ssh-port-change-before" class="pf-c-form__helper-text" aria-live="polite"></div>
+            </div>
+            <div id="modal-div-ssh-port-change-after" class="pf-c-modal-box__body is-hidden">
+                <label for="modal-input-ssh-port-change-after" class="pf-c-form__label">
+                  <span class="pf-c-form__label-text">변경할 SSH 포트</span>
+                </label>
+                <input id="modal-input-ssh-port-change-after" type="number" min="1" max="65535"
+                       placeholder="example: 10022" class="pf-c-form-control" style="max-width:300px">
+                <div id="modal-help-ssh-port-change-after" class="pf-c-form__helper-text" aria-live="polite"></div>
+            </div>
+            <div id="modal-div-ssh-port-change-check" class="pf-c-modal-box__body pf-l-flex pf-m-align-items-center">
+                <p>SSH Port 확인</p>
+                <label class="pf-c-switch">
+                    <input id="modal-input-ssh-port-change-check" class="pf-c-switch__input" type="checkbox" aria-label="SSH Port 확인">
+                    <span class="pf-c-switch__toggle">
+                        <div id="modal-switch-ssh-port-change-check" class="pf-c-switch__toggle-icon" aria-hidden="true"></div>
+                    </span>
+                </label>
+            </div>
+            <footer class="pf-c-modal-box__footer">
+                <button id="button-execution-modal-ssh-port-change" aria-disabled="false"
+                    class="pf-c-button pf-m-primary" type="button" data-ouia-safe="true" disabled>실행</button>
+                <button id="button-cancel-modal-ssh-port-change" aria-disabled="false" class="pf-c-button pf-m-link"
+                    type="button" data-ouia-safe="true">취소</button>
+            </footer>
+        </div>
+    </div>
+</div>
+<!-- ssh port 변경 : Modal 영역 끝 -->
 </body>
 
 </html>

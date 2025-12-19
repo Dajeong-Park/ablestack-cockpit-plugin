@@ -416,136 +416,234 @@ async function ccvmDbBackup() {
  * Meathod Name : checkDBBackupCronjob
  * Date Created : 2023.03.20
  * Writer  : 류홍욱
- * Description : DB 백업 예약작업(Cronjob, at) 확인하는 함수
+ * Description : DB 백업 예약작업(Cronjob, at) 확인하고, 없으면 기본(매일 00:30) 정기 백업을 생성하는 함수
  * Parameter : 없음
  * Return  : 없음
- * History  : 2023.03.17 최초 작성
+ * History  : 2023.03.17 최초 작성 / 2025.11.14 예약 없음 시 기본 정기 백업 자동 생성 추가
  */
 
-async function checkDBBackupCronjob(){
-    let span_ccvm_backup_check = ""
-    let radio_ccvm_backup = $('input[name=radio-ccvm-backup]:checked').val();
-    if (radio_ccvm_backup == "regularBackup") {
-        span_ccvm_backup_check = "r";
-    }else if (radio_ccvm_backup == "deleteOldBackup") {
-        span_ccvm_backup_check = "d";
-    }
+/* eslint-disable no-undef */
+async function checkDBBackupCronjob() {
+  // 현재 라디오 선택값 읽기(r=정기백업, d=오래된 백업 삭제)입니다.
+  let span_ccvm_backup_check = '';
+  const radio_ccvm_backup = $('input[name=radio-ccvm-backup]:checked').val();
+  if (radio_ccvm_backup === 'regularBackup') {
+    span_ccvm_backup_check = 'r';
+  } else if (radio_ccvm_backup === 'deleteOldBackup') {
+    span_ccvm_backup_check = 'd';
+  }
 
-    // 상태 체크 로딩 circle
-    $('#ccvm-dump-status').show()
-    $('#span-ccvm-backup-check').hide()
-    $('#switch-ccvm-backup-check').prop('disabled', false);
+  // 로딩 표시 및 초기 상태 설정입니다.
+  $('#ccvm-dump-status').show();
+  $('#span-ccvm-backup-check').hide();
+  $('#switch-ccvm-backup-check').prop('disabled', false);
 
-    await cockpit.spawn(['/usr/bin/python3', pluginpath+'/python/vm/dump_ccvm.py', 'checkBackup', '--checkOption', span_ccvm_backup_check])
-    .then(function(data){
-        console.log(data);
-        let retVal = JSON.parse(data);
-        if (retVal.code == 200) {
-            dump_check = retVal.val;
-            // 상태 체크 로딩 circle hide
-            $('#ccvm-dump-status').hide()
-            $('#span-ccvm-backup-check').show()
-            $('#switch-ccvm-backup-check').prop('checked', true);
-            $('#span-ccvm-backup-check').text("최초 실행 일정 : "+dump_check);
-            $("select[name=select-db-backup-cloud-vm]").prop('disabled', false)
-            if (retVal.val == 'None'){
-                $("[name=ccvm-regular-backup-time]").prop('disabled', true)
-                $('#switch-ccvm-backup-check').prop('checked', false);
-                $("select[name=select-db-backup-cloud-vm]").prop('disabled', true)
-                $('#span-ccvm-backup-check').text("최초 실행 일정 : " + "예약된 작업 없음");
-            }else {
-                $("[name=ccvm-regular-backup-time]").prop('disabled', false)
-            }
-            createLoggerInfo("Check of mysqldump of ccvm is completed");
-            console.log("Check of mysqldump of ccvm is completed");
-            result="200";
-        }else {
-            $('#div-db-backup').show();
-            $('#div-db-backup').text("클라우드센터 가상머신의 데이터베이스 백업 체크가 실패하었습니다.");
-            $('#dbdump-prepare-status').hide();
-            $('#div-modal-wizard-cluster-config-finish-db-dump-file-download').hide()
-            $('#button-execution-modal-cloud-vm-db-dump').show();
-            $('#button-cancel-modal-cloud-vm-db-dump').show();
-            $('#button-close-modal-cloud-vm-db-dump').show();
-            $('#switch-ccvm-backup-check').prop('checked', false);
-            $('#span-ccvm-backup-check').text("예약된 작업 없음");
-            $("select[name=select-db-backup-cloud-vm]").prop('disabled', true)
-            $("[name=ccvm-regular-backup-time]").prop('disabled', true)
-            createLoggerInfo("Check of mysqldump of ccvm is failed");
-            console.log("Check of mysqldump of ccvm is failed");
-            result="500";
+  try {
+    // 1) 현재 예약 조회입니다.
+    const data = await cockpit.spawn(
+      ['/usr/bin/python3', pluginpath + '/python/vm/dump_ccvm.py', 'checkBackup', '--checkOption', span_ccvm_backup_check],
+      { err: 'message' }
+    );
+
+    console.log('[backup] checkBackup raw:', data);
+    const retVal = JSON.parse(data);
+
+    if (retVal.code === 200) {
+      let dump_check = retVal.val;
+
+      // 2) 정기 백업(r)인데 예약이 없으면 기본 예약(매일 00:30)을 생성합니다.
+      if (span_ccvm_backup_check === 'r' && dump_check === 'None') {
+        console.log('[backup] no schedule found. creating default daily 00:30 schedule...');
+        // regularBackup 은 daily 에도 --timetwo 가 필요하므로 더미값 '0' 을 전달합니다.
+        // 경로는 기본 백업 경로로 /home/db_backup 을 사용합니다.
+        try {
+          const createOut = await cockpit.spawn(
+            [
+              '/usr/bin/python3',
+              pluginpath + '/python/vm/dump_ccvm.py',
+              'regularBackup',
+              '--path',
+              '/home/db_backup',
+              '--repeat',
+              'daily',
+              '--timeone',
+              '00:30',
+              '--timetwo',
+              '0'
+            ],
+            { err: 'message' }
+          );
+          console.log('[backup] default schedule create result:', createOut);
+
+          // 생성 직후 다시 조회하여 최초 실행 일정을 얻습니다.
+          const recheck = await cockpit.spawn(
+            ['/usr/bin/python3', pluginpath + '/python/vm/dump_ccvm.py', 'checkBackup', '--checkOption', 'r'],
+            { err: 'message' }
+          );
+          const reRet = JSON.parse(recheck);
+          dump_check = reRet && reRet.code === 200 ? reRet.val : '매일 00:30 (반복)';
+
+          // UI 반영입니다.
+          $('#ccvm-dump-status').hide();
+          $('#span-ccvm-backup-check').show();
+          $('#switch-ccvm-backup-check').prop('checked', true);
+          $('#span-ccvm-backup-check').text('최초 실행 일정 : ' + dump_check);
+          $("select[name=select-db-backup-cloud-vm]").prop('disabled', false);
+          $("[name=ccvm-regular-backup-time]").prop('disabled', false);
+
+          createLoggerInfo('Default daily mysqldump schedule of ccvm has been created');
+          console.log('Default daily mysqldump schedule of ccvm has been created');
+          return;
+        } catch (e) {
+          console.log('[backup] default schedule create failed:', e);
+          // 실패 시 사용자에게 “예약 없음”을 명시하고 종료합니다.
+          $('#ccvm-dump-status').hide();
+          $('#span-ccvm-backup-check').show();
+          $('#switch-ccvm-backup-check').prop('checked', false);
+          $('#span-ccvm-backup-check').text('최초 실행 일정 : 예약된 작업 없음');
+          $("select[name=select-db-backup-cloud-vm]").prop('disabled', true);
+          $("[name=ccvm-regular-backup-time]").prop('disabled', true);
+          createLoggerInfo('Check of mysqldump of ccvm is completed (no schedule, default creation failed)');
+          console.log('Check of mysqldump of ccvm is completed (no schedule, default creation failed)');
+          return;
         }
-    }).catch(function(data){
-        $('#div-db-backup').show();
-        $('#div-db-backup').text("클라우드센터 가상머신의 데이터베이스 백업 체크가 실패하었습니다.");
-        $('#dbdump-prepare-status').hide();
-        $('#div-modal-wizard-cluster-config-finish-db-dump-file-download').hide()
-        $('#button-execution-modal-cloud-vm-db-dump').show();
-        $('#button-cancel-modal-cloud-vm-db-dump').show();
-        $('#button-close-modal-cloud-vm-db-dump').show();
-        createLoggerInfo("Check of mysqldump of ccvm is failed");
-        console.log("Check of mysqldump of ccvm is failed");
-        result="500";
-    });
+      }
+
+      // 3) 기존 로직: 예약이 있거나(r), 삭제(d) 결과를 그대로 반영합니다.
+      $('#ccvm-dump-status').hide();
+      $('#span-ccvm-backup-check').show();
+      $('#switch-ccvm-backup-check').prop('checked', true);
+      $('#span-ccvm-backup-check').text('최초 실행 일정 : ' + dump_check);
+      $("select[name=select-db-backup-cloud-vm]").prop('disabled', false);
+
+      if (retVal.val === 'None') {
+        $("[name=ccvm-regular-backup-time]").prop('disabled', true);
+        $('#switch-ccvm-backup-check').prop('checked', false);
+        $("select[name=select-db-backup-cloud-vm]").prop('disabled', true);
+        $('#span-ccvm-backup-check').text('최초 실행 일정 : 예약된 작업 없음');
+      } else {
+        $("[name=ccvm-regular-backup-time]").prop('disabled', false);
+      }
+
+      createLoggerInfo('Check of mysqldump of ccvm is completed');
+      console.log('Check of mysqldump of ccvm is completed');
+      result = '200';
+    } else {
+      // 실패 처리입니다.
+      $('#div-db-backup').show();
+      $('#div-db-backup').text('클라우드센터 가상머신의 데이터베이스 백업 체크가 실패하었습니다.');
+      $('#dbdump-prepare-status').hide();
+      $('#div-modal-wizard-cluster-config-finish-db-dump-file-download').hide();
+      $('#button-execution-modal-cloud-vm-db-dump').show();
+      $('#button-cancel-modal-cloud-vm-db-dump').show();
+      $('#button-close-modal-cloud-vm-db-dump').show();
+      $('#switch-ccvm-backup-check').prop('checked', false);
+      $('#span-ccvm-backup-check').text('예약된 작업 없음');
+      $("select[name=select-db-backup-cloud-vm]").prop('disabled', true);
+      $("[name=ccvm-regular-backup-time]").prop('disabled', true);
+      createLoggerInfo('Check of mysqldump of ccvm is failed');
+      console.log('Check of mysqldump of ccvm is failed');
+      result = '500';
+    }
+  } catch (err) {
+    // 예외 처리입니다.
+    $('#div-db-backup').show();
+    $('#div-db-backup').text('클라우드센터 가상머신의 데이터베이스 백업 체크가 실패하었습니다.');
+    $('#dbdump-prepare-status').hide();
+    $('#div-modal-wizard-cluster-config-finish-db-dump-file-download').hide();
+    $('#button-execution-modal-cloud-vm-db-dump').show();
+    $('#button-cancel-modal-cloud-vm-db-dump').show();
+    $('#button-close-modal-cloud-vm-db-dump').show();
+    createLoggerInfo('Check of mysqldump of ccvm is failed');
+    console.log('Check of mysqldump of ccvm is failed', err);
+    result = '500';
+  }
 }
 
 /**
  * Meathod Name : deactiveDBBackupCronjob
  * Date Created : 2023.03.29
  * Writer  : 류홍욱
- * Description : DB 백업 예약작업(Cronjob, at) 비활성하는 함수
+ * Description : DB 백업 예약작업(Cronjob, at) 비활성화하는 함수입니다.
  * Parameter : 없음
  * Return  : 없음
- * History  : 2023.03.17 최초 작성
+ * History : 2023.03.17 최초 작성 / 2025.11.14 정기/삭제 공통 비활성화 처리 정리
  */
 
-async function deactiveDBBackupCronjob(){
-    let span_ccvm_backup_check = ""
-    let radio_ccvm_backup = $('input[name=radio-ccvm-backup]:checked').val();
-    if (radio_ccvm_backup == "regularBackup") {
-        span_ccvm_backup_check = "r";
-    }else if (radio_ccvm_backup == "deleteOldBackup") {
-        span_ccvm_backup_check = "d";
-    }
+/* eslint-disable no-undef */
+async function deactiveDBBackupCronjob() {
+  // 현재 라디오 선택값 읽기(r=정기백업, d=오래된 백업 삭제)입니다.
+  let span_ccvm_backup_check = '';
+  const radio_ccvm_backup = $('input[name=radio-ccvm-backup]:checked').val();
+  if (radio_ccvm_backup === 'regularBackup') {
+    span_ccvm_backup_check = 'r';
+  } else if (radio_ccvm_backup === 'deleteOldBackup') {
+    span_ccvm_backup_check = 'd';
+  }
 
-    await cockpit.spawn(['/usr/bin/python3', pluginpath+'/python/vm/dump_ccvm.py', 'deactiveBackup', '--checkOption', span_ccvm_backup_check])
-    .then(function(data){
-        console.log(data);
-        let retVal = JSON.parse(data);
-        if (retVal.code == 200) {
-            dump_check = retVal.val;
-            console.log(dump_check);
-            $('#switch-ccvm-backup-check').prop('checked', false);
-            $('#span-ccvm-backup-check').text("예약된 작업 없음");
-            createLoggerInfo("deactivation of mysqldump of ccvm is completed");
-            console.log("deactivation of mysqldump of ccvm is completed");
-            result="200";
-        }else {
-            $('#div-db-backup').show();
-            $('#div-db-backup').text("클라우드센터 가상머신의 데이터베이스 백업 비활성화 작업이 실패하었습니다.");
-            $('#dbdump-prepare-status').hide();
-            $('#div-modal-wizard-cluster-config-finish-db-dump-file-download').hide()
-            $('#button-execution-modal-cloud-vm-db-dump').show();
-            $('#button-cancel-modal-cloud-vm-db-dump').show();
-            $('#button-close-modal-cloud-vm-db-dump').show();
-            $('#switch-ccvm-backup-check').prop('checked', false);
-            $('#span-ccvm-backup-check').text("예약된 작업 없음");
-            $("select[name=select-db-backup-cloud-vm]").prop('disabled', true)
-            $("[name=ccvm-regular-backup-time]").prop('disabled', true)
-            createLoggerInfo("deactivation of mysqldump of ccvm is failed");
-            console.log("deactivation of mysqldump of ccvm is failed");
-            result="500";
-        }
-    }).catch(function(data){
-        $('#div-db-backup').show();
-        $('#div-db-backup').text("클라우드센터 가상머신의 데이터베이스 백업 비활성화 작업이 실패하었습니다.");
-        $('#dbdump-prepare-status').hide();
-        $('#div-modal-wizard-cluster-config-finish-db-dump-file-download').hide()
-        $('#button-execution-modal-cloud-vm-db-dump').show();
-        $('#button-cancel-modal-cloud-vm-db-dump').show();
-        $('#button-close-modal-cloud-vm-db-dump').show();
-        createLoggerInfo("deactivation of mysqldump of ccvm is failed");
-        console.log("deactivation of mysqldump of ccvm is failed");
-        result="500";
-    });
+  try {
+    // 파이썬 스크립트로 해당 타입(r/d) 예약 비활성화를 요청합니다.
+    const data = await cockpit.spawn(
+      [
+        '/usr/bin/python3',
+        pluginpath + '/python/vm/dump_ccvm.py',
+        'deactiveBackup',
+        '--checkOption',
+        span_ccvm_backup_check
+      ],
+      { err: 'message' }
+    );
+
+    console.log('[backup] deactiveBackup raw:', data);
+    const retVal = JSON.parse(data);
+
+    if (retVal.code === 200) {
+      const dump_check = retVal.val;
+      console.log('[backup] deactiveBackup result:', dump_check);
+
+      // 스위치를 끄고, 최초 실행 일정은 “예약된 작업 없음”으로 표시합니다.
+      $('#switch-ccvm-backup-check').prop('checked', false);
+      $('#span-ccvm-backup-check').text('예약된 작업 없음');
+
+      // 정기/삭제 모두 “예약 없음” 상태이므로 시간/옵션은 비활성화합니다.
+      $("select[name=select-db-backup-cloud-vm]").prop('disabled', true);
+      $("[name=ccvm-regular-backup-time]").prop('disabled', true);
+
+      createLoggerInfo('deactivation of mysqldump of ccvm is completed');
+      console.log('deactivation of mysqldump of ccvm is completed');
+      result = '200';
+    } else {
+      // 실패 시: 기존 UI 오류 처리와 동일하게 유지합니다.
+      $('#div-db-backup').show();
+      $('#div-db-backup').text('클라우드센터 가상머신의 데이터베이스 백업 비활성화 작업이 실패하었습니다.');
+      $('#dbdump-prepare-status').hide();
+      $('#div-modal-wizard-cluster-config-finish-db-dump-file-download').hide();
+      $('#button-execution-modal-cloud-vm-db-dump').show();
+      $('#button-cancel-modal-cloud-vm-db-dump').show();
+      $('#button-close-modal-cloud-vm-db-dump').show();
+      $('#switch-ccvm-backup-check').prop('checked', false);
+      $('#span-ccvm-backup-check').text('예약된 작업 없음');
+      $("select[name=select-db-backup-cloud-vm]").prop('disabled', true);
+      $("[name=ccvm-regular-backup-time]").prop('disabled', true);
+      createLoggerInfo('deactivation of mysqldump of ccvm is failed');
+      console.log('deactivation of mysqldump of ccvm is failed');
+      result = '500';
+    }
+  } catch (err) {
+    // 예외 발생 시도 동일하게 실패 처리입니다.
+    $('#div-db-backup').show();
+    $('#div-db-backup').text('클라우드센터 가상머신의 데이터베이스 백업 비활성화 작업이 실패하었습니다.');
+    $('#dbdump-prepare-status').hide();
+    $('#div-modal-wizard-cluster-config-finish-db-dump-file-download').hide();
+    $('#button-execution-modal-cloud-vm-db-dump').show();
+    $('#button-cancel-modal-cloud-vm-db-dump').show();
+    $('#button-close-modal-cloud-vm-db-dump').show();
+    $('#switch-ccvm-backup-check').prop('checked', false);
+    $('#span-ccvm-backup-check').text('예약된 작업 없음');
+    $("select[name=select-db-backup-cloud-vm]").prop('disabled', true);
+    $("[name=ccvm-regular-backup-time]").prop('disabled', true);
+    createLoggerInfo('deactivation of mysqldump of ccvm is failed');
+    console.log('deactivation of mysqldump of ccvm is failed', err);
+    result = '500';
+  }
 }

@@ -21,7 +21,7 @@ $(document).ready(function(){
         glue_api_port = glueConf.apiPort;
         hypervisor = glueConf.hypervisor;
 
-        cockpit.script(["cat /etc/hosts | grep 'scvm-mngt' | awk '{print $1}'"])
+        cockpit.script([`cat /etc/hosts | grep -E '(^|\\s)scvm-mngt(\\s|$)' | awk '{print $1}'`])
         .then(function (ip) {
             if(ip != ""){
                 glue_api_ip = ip;

@@ -87,17 +87,22 @@ def remove(args):
             outfile.write('{\n')
             outfile.write('    "bootstrap": {\n')
             outfile.write('        "scvm": "false",\n')
-            outfile.write('        "ccvm": "false"\n')
+            outfile.write('        "ccvm": "false",\n')
             outfile.write('        "pfmp": "false"\n')
             outfile.write('    },\n')
             outfile.write('    "monitoring": {\n')
             outfile.write('        "wall": "false"\n')
-            outfile.write('    }\n')
+            outfile.write('    },\n')
+            outfile.write('    "license": {\n')
+            outfile.write('        "status": "false",\n')
+            outfile.write('        "type": ""\n')
+            outfile.write('    },\n')
             outfile.write('}')
-        if os_type == 'PowerFlex':
+        if os_type == 'powerflex':
             with open(cluster_file_path, 'w') as outfile:
                 outfile.write('{\n')
                 outfile.write('    "clusterConfig": {\n')
+                outfile.write('        "type" : "",\n')
                 outfile.write('        "ccvm": {\n')
                 outfile.write('            "ip": ""\n')
                 outfile.write('            "pn": ""\n')
@@ -125,10 +130,11 @@ def remove(args):
                 outfile.write('    }\n')
                 outfile.write('}\n')
 
-        else:   #os_type == "ABLESTACK-HCI"
+        else:   #os_type == "ablestack-hci"
             with open(cluster_file_path, 'w') as outfile:
                 outfile.write('{\n')
                 outfile.write('    "clusterConfig": {\n')
+                outfile.write('        "type": "",\n')
                 outfile.write('        "ccvm": {\n')
                 outfile.write('            "ip": ""\n')
                 outfile.write('        },\n')

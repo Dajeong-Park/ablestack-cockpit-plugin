@@ -9,9 +9,11 @@ libvirt domain들의 정보를 수집하는 스크립트입니다.
 '''
 
 import os
+import re
 import sh
 import json
 from concurrent.futures import ThreadPoolExecutor
+from ablestack import *
 
 env = os.environ.copy()
 env['LANG'] = "en_US.utf-8"
@@ -20,6 +22,20 @@ env['LANGUAGE'] = "en"
 virsh_cmd = sh.Command('/usr/bin/virsh')
 ssh_cmd = sh.Command('/usr/bin/ssh')
 
+cluster_json_file_path = pluginpath + "/tools/properties/cluster.json"
+def openClusterJson():
+    try:
+        with open(cluster_json_file_path, 'r') as json_file:
+            ret = json.load(json_file)
+    except Exception as e:
+        ret = createReturn(code=500, val='cluster.json read error')
+        print ('EXCEPTION : ',e)
+
+    return ret
+
+
+cluster_json_data = openClusterJson()
+os_type = cluster_json_data["clusterConfig"]["type"]
 
 def collect_vm_info(vm):
     """
@@ -80,7 +96,7 @@ def collect_vm_info(vm):
             command = '''
             output=$(/usr/sbin/route -n | grep -P "^0.0.0.0|UG" | awk '{print $2}');
             echo "${output:-""}";
-            output=$(/usr/bin/awk '/^nameserver/ {print $2}' /etc/resolv.conf);
+            output=$(/usr/bin/awk '/^nameserver/ {print $2}' /etc/resolv.conf | head -n 1);
             echo "${output:-""}";
             output=$(systemctl is-active mold.service);
             echo "${output:-"inactive"}";
@@ -96,37 +112,101 @@ def collect_vm_info(vm):
             # Parse service status
             vm['MOLD_SERVICE_STATUE'] = ret[2]
             vm['MOLD_DB_STATUE'] = ret[3]
+        else:
+            vm['ip'] = "N/A"
+            vm['mac'] = "N/A"
+            vm['nictype'] = "N/A"
+            vm['nicbridge'] = "N/A"
+            vm['prefix'] = "N/A"
+            vm['DISK_CAP'] = "N/A"
+            vm['DISK_ALLOC'] = "N/A"
+            vm['DISK_PHY'] = "N/A"
+            vm['DISK_USAGE_RATE'] = "N/A"
+            vm['SECOND_DISK_CAP'] = "N/A"
+            vm['SECOND_DISK_ALLOC'] = "N/A"
+            vm['SECOND_DISK_PHY'] = "N/A"
+            vm['SECOND_DISK_USAGE_RATE'] = "N/A"
+            vm['GW'] = "N/A"
+            vm['DNS'] = "N/A"
+            vm['MOLD_SERVICE_STATUE'] = "N/A"
+            vm['MOLD_DB_STATUE'] = "N/A"
 
     except Exception as e:
         vm['error'] = str(e)
 
     return vm
 
-
 def main():
     """
     Main function to collect VM information.
     """
-    # List all VMs
-    ret = virsh_cmd('list', '--all', _env=env).splitlines()
-    vms = []
-    for line in ret[2:-1]:
-        items = line.split(maxsplit=2)
-        if(items[1] == 'ccvm'):
-            vm = {
-                'Id': items[0],
-                'Name': items[1],
-                'State': items[2]
+    if os_type == "ablestack-standalone":
+        try:
+            # List all VMs
+            ret = virsh_cmd('list', '--all', _env=env).splitlines()
+            vms = []
+            for line in ret:
+                s = line.strip()
+                # 1) 빈 줄, 2) 헤더, 3) '-----' 같은 구분선만 제외
+                if not s or s.startswith("Id ") or re.fullmatch(r'-+', s):
+                    continue
+
+                items = s.split(None, 2)  # 공백 기준 3개 컬럼(Id, Name, State)
+                if len(items) < 3:
+                    continue
+
+                if items[1] == 'ccvm':
+                    vm = {
+                        'Id':   items[0],
+                        'Name': items[1],
+                        'State': items[2]
+                    }
+                    vms.append(vm)
+
+            # ❗빈 리스트면 500 에러 반환
+            if not vms:
+                error_response = {
+                    "code": 500,
+                    "message": "The CloudCenter VM has not been created."
+                }
+                print(json.dumps(error_response, indent=2))
+                return
+
+            # Collect detailed information
+            with ThreadPoolExecutor(max_workers=4) as executor:
+                vms = list(executor.map(collect_vm_info, vms))
+
+            print(json.dumps({
+                "code": 200,
+                "data": vms
+            }, indent=2))
+
+        except Exception as e:
+            error_response = {
+                "code": 500,
+                "message": f"Error occurred while checking CloudCenter VM: {str(e)}"
             }
-            vms.append(vm)
+            print(json.dumps(error_response, indent=2))
+    else:
+        # List all VMs
+        ret = virsh_cmd('list', '--all', _env=env).splitlines()
+        vms = []
+        for line in ret[2:-1]:
+            items = line.split(maxsplit=2)
+            if(items[1] == 'ccvm'):
+                vm = {
+                    'Id': items[0],
+                    'Name': items[1],
+                    'State': items[2]
+                }
+                vms.append(vm)
 
-    # Collect detailed information for each VM in parallel
-    with ThreadPoolExecutor(max_workers=4) as executor:  # Adjust workers based on CPU cores
-        vms = list(executor.map(collect_vm_info, vms))
+        # Collect detailed information for each VM in parallel
+        with ThreadPoolExecutor(max_workers=4) as executor:  # Adjust workers based on CPU cores
+            vms = list(executor.map(collect_vm_info, vms))
 
-    # Print collected VM information as JSON
-    print(json.dumps(vms, indent=2))
-
+        # Print collected VM information as JSON
+        print(json.dumps(vms, indent=2))
 
 if __name__ == "__main__":
     main()

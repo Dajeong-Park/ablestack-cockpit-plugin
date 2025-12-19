@@ -33,5 +33,5 @@ else
   do
     /usr/bin/ssh -o StrictHostKeyChecking=no $host python3 /usr/share/cockpit/ablestack/python/ablestack_json/ablestackJson.py update --depth1 bootstrap --depth2 ccvm --value true
   done
-  /usr/bin/ssh -o StrictHostKeyChecking=no ccvm sh /root/bootstrap.sh
+  /usr/bin/ssh -o StrictHostKeyChecking=no ccvm sh /root/bootstrap.sh $2
 fi
